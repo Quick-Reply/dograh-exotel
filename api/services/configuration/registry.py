@@ -34,6 +34,7 @@ class ServiceProviders(str, Enum):
     RIME = "rime"
     OPENAI_REALTIME = "openai_realtime"
     GOOGLE_REALTIME = "google_realtime"
+    CEREBRAS = "cerebras"
 
 
 class BaseServiceConfiguration(BaseModel):
@@ -53,6 +54,7 @@ class BaseServiceConfiguration(BaseModel):
         ServiceProviders.RIME,
         ServiceProviders.OPENAI_REALTIME,
         ServiceProviders.GOOGLE_REALTIME,
+        ServiceProviders.CEREBRAS,
         # ServiceProviders.SARVAM,
     ]
     api_key: str | list[str]
@@ -381,6 +383,29 @@ class GoogleRealtimeLLMConfiguration(BaseLLMConfiguration):
     )
 
 
+CEREBRAS_MODELS = [
+    "llama3.1-8b",
+    "llama3.1-70b",
+    "llama-3.3-70b",
+    "gpt-oss-120b",
+    "qwen-3-235b-a22b-instruct-2507",
+    "zai-glm-4.7",
+]
+
+
+@register_llm
+class CerebrasLLMConfiguration(BaseLLMConfiguration):
+    provider: Literal[ServiceProviders.CEREBRAS] = ServiceProviders.CEREBRAS
+    model: str = Field(
+        default="llama3.1-8b",
+        json_schema_extra={
+            "examples": CEREBRAS_MODELS,
+            "allow_custom_input": True,
+        },
+    )
+
+
+
 REALTIME_PROVIDERS = {
     ServiceProviders.OPENAI_REALTIME.value,
     ServiceProviders.GOOGLE_REALTIME.value,
@@ -397,6 +422,7 @@ LLMConfig = Annotated[
         DograhLLMService,
         AWSBedrockLLMConfiguration,
         SpeachesLLMConfiguration,
+        CerebrasLLMConfiguration,
     ],
     Field(discriminator="provider"),
 ]
