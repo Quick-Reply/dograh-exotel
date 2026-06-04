@@ -68,6 +68,10 @@ class TransferContext:
     original_call_sid: str
     conference_name: str
     initiated_at: float
+    # workflow_run_id: lets transfer_id-keyed webhooks resolve org/credentials.
+    # conference_id: set by providers that seed the conference on answer (Telnyx).
+    workflow_run_id: Optional[int] = None
+    conference_id: Optional[str] = None
 
     def to_json(self) -> str:
         """Convert context to JSON string."""
@@ -95,3 +99,12 @@ class TransferRedisChannels:
     def transfer_context_key(transfer_id: str) -> str:
         """Redis key for transfer context storage."""
         return f"transfer:context:{transfer_id}"
+
+    @staticmethod
+    def transfer_context_by_call_sid_key(original_call_sid: str) -> str:
+        """Redis key for the original_call_sid -> transfer_id secondary index.
+
+        Lets a caller's transfer context be resolved with a direct lookup
+        instead of an O(N) ``KEYS transfer:context:*`` keyspace scan.
+        """
+        return f"transfer:by_call_sid:{original_call_sid}"

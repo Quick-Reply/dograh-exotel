@@ -13,6 +13,11 @@ from api.constants import BACKEND_API_ENDPOINT
 from api.db import db_client
 from api.db.models import WorkflowRunModel
 from api.enums import OrganizationConfigurationKey
+from api.services.integrations import (
+    IntegrationCompletionContext,
+    has_completion_handlers,
+    run_completion_handlers,
+)
 from api.services.pipecat.tracing_config import register_org_langfuse_credentials
 from api.services.workflow.dto import (
     QANodeData,
@@ -213,16 +218,20 @@ async def run_integrations_post_workflow_run(_ctx, workflow_run_id: int):
         nodes = workflow_definition.get("nodes", [])
         qa_nodes = [n for n in nodes if n.get("type") == "qa"]
         webhook_nodes = [n for n in nodes if n.get("type") == "webhook"]
+        has_registered_integrations = has_completion_handlers(workflow_definition)
 
-        # Step 4: Generate public access token if webhooks exist or campaign_id is set
+        # Step 4: Generate a public access token for any run that needs post-call work.
         has_campaign = workflow_run.campaign_id is not None
-        if not webhook_nodes and not qa_nodes and not has_campaign:
+        if (
+            not webhook_nodes
+            and not qa_nodes
+            and not has_registered_integrations
+            and not has_campaign
+        ):
             logger.debug("No integration nodes and no campaign, skipping")
             return
 
-        public_token = None
-        if webhook_nodes or has_campaign:
-            public_token = await db_client.ensure_public_access_token(workflow_run_id)
+        public_token = await db_client.ensure_public_access_token(workflow_run_id)
 
         # Step 5: Run QA analysis before webhooks
         if qa_nodes:
@@ -262,17 +271,37 @@ async def run_integrations_post_workflow_run(_ctx, workflow_run_id: int):
                     workflow_run_id
                 )
 
-        # Step 6: Execute webhooks
+        # Step 6: Run registered third-party integrations after uploads are complete
+        integration_results = await run_completion_handlers(
+            context=IntegrationCompletionContext(
+                workflow_run_id=workflow_run_id,
+                workflow_run=workflow_run,
+                workflow_definition=workflow_definition,
+                definition_id=definition_id,
+                organization_id=organization_id,
+                public_token=public_token,
+            )
+        )
+
+        if integration_results:
+            await db_client.update_workflow_run(
+                workflow_run_id, annotations=integration_results
+            )
+            workflow_run, _ = await db_client.get_workflow_run_with_context(
+                workflow_run_id
+            )
+
+        # Step 7: Execute webhooks
         if not webhook_nodes:
             logger.debug("No webhook nodes in workflow")
             return
 
         logger.info(f"Found {len(webhook_nodes)} webhook nodes to execute")
 
-        # Step 7: Build render context (includes annotations from QA)
+        # Step 8: Build render context (includes annotations from QA and integrations)
         render_context = _build_render_context(workflow_run, public_token)
 
-        # Step 8: Execute each webhook node
+        # Step 9: Execute each webhook node
         for node in webhook_nodes:
             node_id = node.get("id", "unknown")
             try:
@@ -316,6 +345,8 @@ def _build_render_context(
         "workflow_run_name": workflow_run.name,
         "workflow_id": workflow_run.workflow_id,
         "workflow_name": workflow_run.workflow.name if workflow_run.workflow else None,
+        "campaign_id": workflow_run.campaign_id,
+        "call_time": (workflow_run.created_at or datetime.now(UTC)).isoformat(),
         # Nested contexts
         "initial_context": workflow_run.initial_context or {},
         "gathered_context": workflow_run.gathered_context or {},

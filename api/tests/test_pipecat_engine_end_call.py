@@ -25,8 +25,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from pipecat.frames.frames import Frame, LLMContextFrame
 from pipecat.pipeline.pipeline import Pipeline
-from pipecat.pipeline.runner import PipelineRunner
-from pipecat.pipeline.task import PipelineParams, PipelineTask
+from pipecat.pipeline.worker import PipelineParams, PipelineWorker
 from pipecat.processors.aggregators.llm_context import LLMContext
 from pipecat.processors.aggregators.llm_response_universal import (
     LLMAssistantAggregatorParams,
@@ -42,15 +41,15 @@ from pipecat.turns.user_mute import (
 from pipecat.utils.enums import EndTaskReason
 
 from api.enums import ToolCategory
+from api.services.pipecat.worker_runner import run_pipeline_worker
 from api.services.workflow.dto import (
     EdgeDataDTO,
     EndCallNodeData,
-    EndCallRFNode,
     Position,
     ReactFlowDTO,
     RFEdgeDTO,
+    RFNodeDTO,
     StartCallNodeData,
-    StartCallRFNode,
 )
 from api.services.workflow.pipecat_engine import PipecatEngine
 from api.services.workflow.pipecat_engine_custom_tools import CustomToolManager
@@ -113,7 +112,7 @@ async def create_engine_with_tracking(
     mock_llm: MockLLMService,
     test_helper: EndCallTestHelper,
     generate_audio: bool = True,
-) -> tuple[PipecatEngine, MockTTSService, MockTransport, PipelineTask]:
+) -> tuple[PipecatEngine, MockTTSService, MockTransport, PipelineWorker]:
     """Create a PipecatEngine with tracking for end call behavior.
 
     Args:
@@ -223,7 +222,7 @@ async def create_engine_with_tracking(
     )
 
     # Create pipeline task
-    task = PipelineTask(pipeline, params=PipelineParams(), enable_rtvi=False)
+    task = PipelineWorker(pipeline, params=PipelineParams(), enable_rtvi=False)
 
     engine.set_task(task)
 
@@ -280,10 +279,9 @@ class TestEndCallViaNodeTransition:
                     new_callable=AsyncMock,
                     return_value={"user_intent": "end call"},
                 ):
-                    runner = PipelineRunner()
 
                     async def run_pipeline():
-                        await runner.run(task)
+                        await run_pipeline_worker(task)
 
                     async def initialize_engine():
                         await asyncio.sleep(0.01)
@@ -384,10 +382,9 @@ class TestEndCallViaNodeTransition:
                     new_callable=AsyncMock,
                     return_value={"greeting_type": "formal", "user_name": "John"},
                 ):
-                    runner = PipelineRunner()
 
                     async def run_pipeline():
-                        await runner.run(task)
+                        await run_pipeline_worker(task)
 
                     async def initialize_engine():
                         await asyncio.sleep(0.01)
@@ -483,10 +480,9 @@ class TestEndCallViaCustomTool:
                     new_callable=AsyncMock,
                     return_value={"user_intent": "end"},
                 ):
-                    runner = PipelineRunner()
 
                     async def run_pipeline():
-                        await runner.run(task)
+                        await run_pipeline_worker(task)
 
                     async def initialize_engine():
                         await asyncio.sleep(0.01)
@@ -575,10 +571,9 @@ class TestEndCallViaCustomTool:
                     new_callable=AsyncMock,
                     return_value={"user_intent": "end"},
                 ):
-                    runner = PipelineRunner()
 
                     async def run_pipeline():
-                        await runner.run(task)
+                        await run_pipeline_worker(task)
 
                     async def initialize_engine():
                         await asyncio.sleep(0.01)
@@ -653,10 +648,9 @@ class TestEndCallViaClientDisconnect:
                     new_callable=AsyncMock,
                     return_value={"user_intent": "disconnected"},
                 ):
-                    runner = PipelineRunner()
 
                     async def run_pipeline():
-                        await runner.run(task)
+                        await run_pipeline_worker(task)
 
                     async def initialize_and_disconnect():
                         await asyncio.sleep(0.01)
@@ -744,10 +738,9 @@ class TestEndCallRaceConditions:
                     new_callable=AsyncMock,
                     return_value={"user_intent": "end"},
                 ):
-                    runner = PipelineRunner()
 
                     async def run_pipeline():
-                        await runner.run(task)
+                        await run_pipeline_worker(task)
 
                     async def initialize_and_race():
                         await asyncio.sleep(0.01)
@@ -856,10 +849,9 @@ class TestEndCallRaceConditions:
                     new_callable=AsyncMock,
                     return_value={"user_intent": "end"},
                 ):
-                    runner = PipelineRunner()
 
                     async def run_pipeline():
-                        await runner.run(task)
+                        await run_pipeline_worker(task)
 
                     async def initialize_and_race_disconnect():
                         nonlocal disconnect_called
@@ -951,10 +943,9 @@ class TestEndCallExtractionBehavior:
                     "_perform_extraction",
                     side_effect=mock_extraction,
                 ):
-                    runner = PipelineRunner()
 
                     async def run_pipeline():
-                        await runner.run(task)
+                        await run_pipeline_worker(task)
 
                     async def initialize_and_end():
                         await asyncio.sleep(0.01)
@@ -1014,8 +1005,9 @@ class TestEndCallExtractionBehavior:
         # Create a workflow where start node has NO extraction
         dto = ReactFlowDTO(
             nodes=[
-                StartCallRFNode(
+                RFNodeDTO(
                     id="start",
+                    type="startCall",
                     position=Position(x=0, y=0),
                     data=StartCallNodeData(
                         name="Start Call",
@@ -1026,8 +1018,9 @@ class TestEndCallExtractionBehavior:
                         extraction_enabled=False,  # No extraction
                     ),
                 ),
-                EndCallRFNode(
+                RFNodeDTO(
                     id="end",
+                    type="endCall",
                     position=Position(x=0, y=200),
                     data=EndCallNodeData(
                         name="End Call",
@@ -1075,10 +1068,9 @@ class TestEndCallExtractionBehavior:
                     "_perform_extraction",
                     extraction_mock,
                 ):
-                    runner = PipelineRunner()
 
                     async def run_pipeline():
-                        await runner.run(task)
+                        await run_pipeline_worker(task)
 
                     async def initialize_and_end():
                         await asyncio.sleep(0.01)

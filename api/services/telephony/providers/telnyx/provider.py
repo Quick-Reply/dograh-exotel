@@ -4,13 +4,26 @@ Uses the Telnyx Call Control API v2 for outbound calling with
 inline WebSocket media streaming.
 """
 
+import base64
+import binascii
 import json
 import random
+import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import aiohttp
+import nacl.exceptions
+import nacl.signing
 from fastapi import HTTPException, WebSocketDisconnect
 from loguru import logger
+
+# 5-min replay window — matches Telnyx SDKs (Python/Node/Go/Ruby/PHP);
+# Source: github.com/team-telnyx/telnyx-python src/telnyx/lib/webhook_verification.py
+TELNYX_TIMESTAMP_TOLERANCE_SECONDS = 300
+
+# Ed25519 sizes per RFC 8032; Telnyx SDKs check these for clearer errors than PyNaCl.
+TELNYX_PUBLIC_KEY_BYTES = 32
+TELNYX_SIGNATURE_BYTES = 64
 
 from api.enums import WorkflowRunMode
 from api.services.telephony.base import (
@@ -32,6 +45,13 @@ def normalize_event_type(event_type: str) -> str:
     dotted form so all downstream matching can use a single canonical shape.
     """
     return (event_type or "").replace("_", ".")
+
+
+def _get_header(headers: Dict[str, str], name: str) -> str:
+    for key, value in headers.items():
+        if key.lower() == name:
+            return value
+    return ""
 
 
 class TelnyxProvider(TelephonyProvider):
@@ -168,13 +188,83 @@ class TelnyxProvider(TelephonyProvider):
     async def verify_webhook_signature(
         self, url: str, params: Dict[str, Any], signature: str
     ) -> bool:
-        """Required by the abstract interface but not actively called for Telnyx.
+        """Verify a Telnyx Ed25519 webhook signature.
 
-        Telnyx webhook signature verification uses Ed25519 (via the
-        telnyx-signature-ed25519 header). This can be implemented in the
-        future using the Telnyx SDK if needed.
+        Telnyx signs ``{timestamp}|{json_payload}`` and sends the signature in
+        ``telnyx-signature-ed25519``. The public key is read from provider
+        configuration, not from the request. ``url`` is unused — Telnyx does
+        not sign the request URL; the parameter exists to satisfy the base
+        class interface.
+
+        Docs:
+        https://developers.telnyx.com/development/api-fundamentals/webhooks/receiving-webhooks
         """
-        return True
+        timestamp = params.get("telnyx_timestamp") or params.get("timestamp")
+        raw_body = params.get("_raw_body", "")
+
+        if not signature:
+            logger.warning("Telnyx webhook missing telnyx-signature-ed25519 header")
+            return False
+        if not timestamp:
+            logger.warning("Telnyx webhook missing telnyx-timestamp header")
+            return False
+
+        if not self.webhook_public_key:
+            logger.error("Missing Telnyx webhook_public_key configuration")
+            return False
+
+        try:
+            ts_int = int(timestamp)
+        except (TypeError, ValueError):
+            logger.warning(f"Invalid Telnyx webhook timestamp format: {timestamp!r}")
+            return False
+
+        if abs(time.time() - ts_int) > TELNYX_TIMESTAMP_TOLERANCE_SECONDS:
+            logger.warning(
+                f"Telnyx webhook timestamp outside "
+                f"{TELNYX_TIMESTAMP_TOLERANCE_SECONDS}s tolerance: "
+                f"timestamp={ts_int}, now={int(time.time())}"
+            )
+            return False
+
+        if isinstance(raw_body, bytes):
+            raw_body = raw_body.decode("utf-8")
+
+        try:
+            signature_bytes = base64.b64decode(signature, validate=True)
+        except (binascii.Error, ValueError) as e:
+            logger.warning(f"Telnyx webhook signature not valid base64: {e}")
+            return False
+
+        try:
+            public_key_bytes = base64.b64decode(
+                self.webhook_public_key.strip(), validate=True
+            )
+        except (binascii.Error, ValueError) as e:
+            logger.error(f"Telnyx webhook_public_key not valid base64: {e}")
+            return False
+
+        if len(public_key_bytes) != TELNYX_PUBLIC_KEY_BYTES:
+            logger.error(
+                f"Telnyx webhook_public_key wrong length: expected "
+                f"{TELNYX_PUBLIC_KEY_BYTES}, got {len(public_key_bytes)}"
+            )
+            return False
+
+        if len(signature_bytes) != TELNYX_SIGNATURE_BYTES:
+            logger.warning(
+                f"Telnyx webhook signature wrong length: expected "
+                f"{TELNYX_SIGNATURE_BYTES}, got {len(signature_bytes)}"
+            )
+            return False
+
+        try:
+            verify_key = nacl.signing.VerifyKey(public_key_bytes)
+            signed_payload = f"{timestamp}|{raw_body}".encode("utf-8")
+            verify_key.verify(signed_payload, signature_bytes)
+            return True
+        except nacl.exceptions.BadSignatureError:
+            return False
 
     async def get_webhook_response(
         self, workflow_id: int, user_id: int, workflow_run_id: int
@@ -420,9 +510,9 @@ class TelnyxProvider(TelephonyProvider):
         return NormalizedInboundData(
             provider=TelnyxProvider.PROVIDER_NAME,
             call_id=payload.get("call_control_id", ""),
-            from_number=normalize_telephony_address(from_raw).canonical
-            if from_raw
-            else "",
+            from_number=(
+                normalize_telephony_address(from_raw).canonical if from_raw else ""
+            ),
             to_number=normalize_telephony_address(to_raw).canonical if to_raw else "",
             direction=direction,
             call_status=normalize_event_type(data.get("event_type", "")),
@@ -444,11 +534,14 @@ class TelnyxProvider(TelephonyProvider):
         headers: Dict[str, str],
         body: str = "",
     ) -> bool:
-        """Required by the abstract interface. Telnyx signature verification
-        (Ed25519 via ``telnyx-signature-ed25519``) is not yet implemented —
-        accepts all inbound webhooks for now.
-        """
-        return True
+        """Verify the signature of an inbound Telnyx webhook."""
+        signature = _get_header(headers, "telnyx-signature-ed25519")
+        timestamp = _get_header(headers, "telnyx-timestamp")
+        return await self.verify_webhook_signature(
+            url,
+            {"telnyx_timestamp": timestamp, "_raw_body": body},
+            signature,
+        )
 
     async def configure_inbound(
         self, address: str, webhook_url: Optional[str]
@@ -621,8 +714,127 @@ class TelnyxProvider(TelephonyProvider):
         timeout: int = 30,
         **kwargs: Any,
     ) -> Dict[str, Any]:
-        """Telnyx call transfer is not yet implemented."""
-        raise NotImplementedError("Call transfer not yet supported for Telnyx")
+        """Dial the destination as a plain call; conference is seeded later.
+
+        Webhook (``call.answered``) seeds the conference with this leg;
+        ``TelnyxConferenceStrategy`` joins the caller on pipeline teardown.
+        https://developers.telnyx.com/api-reference/call-commands/dial
+        """
+        if not self.validate_config():
+            raise ValueError("Telnyx provider not properly configured")
+
+        from_number = random.choice(self.from_numbers)
+        logger.info(f"Selected phone number {from_number} for Telnyx transfer call")
+
+        backend_endpoint, _ = await get_backend_endpoints()
+        webhook_url = (
+            f"{backend_endpoint}/api/v1/telephony/telnyx/transfer-result/{transfer_id}"
+        )
+
+        payload = {
+            "connection_id": self.connection_id,
+            "to": destination,
+            "from": from_number,
+            "timeout_secs": timeout,
+            "webhook_url": webhook_url,
+            "webhook_url_method": "POST",
+        }
+        payload.update(kwargs)
+
+        endpoint = f"{self.TELNYX_API_BASE}/calls"
+
+        logger.debug(
+            f"Telnyx transfer dial payload: "
+            f"{json.dumps({k: v for k, v in payload.items() if k != 'connection_id'})}"
+        )
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    endpoint, json=payload, headers=self._headers()
+                ) as response:
+                    response_text = await response.text()
+                    if response.status != 200:
+                        logger.error(
+                            f"Telnyx transfer dial failed: "
+                            f"status={response.status} body={response_text}"
+                        )
+                        raise Exception(
+                            f"Telnyx transfer dial failed: "
+                            f"status={response.status} body={response_text}"
+                        )
+
+                    response_data = json.loads(response_text)
+                    data = response_data.get("data", {})
+                    call_control_id = data.get("call_control_id", "")
+
+                    logger.info(
+                        f"Telnyx transfer dial initiated: "
+                        f"call_control_id={call_control_id}, "
+                        f"to={destination}, conference_name={conference_name}"
+                    )
+
+                    return {
+                        "call_sid": call_control_id,
+                        "status": "initiated",
+                        "provider": self.PROVIDER_NAME,
+                        "from_number": from_number,
+                        "to_number": destination,
+                        "raw_response": response_data,
+                    }
+        except Exception as e:
+            logger.error(f"Exception during Telnyx transfer dial: {e}")
+            raise
 
     def supports_transfers(self) -> bool:
-        return False
+        return True
+
+    async def create_conference(
+        self, seed_call_control_id: str, name: str
+    ) -> Optional[str]:
+        """Seed a Telnyx conference with an existing call leg.
+
+        Used by the transfer flow on ``call.answered`` to put the destination
+        leg into a conference immediately. The returned ``conference_id`` is stored
+        on the ``TransferContext`` so the strategy can later join the caller.
+
+        https://developers.telnyx.com/api-reference/conference-commands/create-conference
+        """
+        if not self.api_key:
+            logger.error("Cannot create Telnyx conference: api_key missing")
+            return None
+
+        endpoint = f"{self.TELNYX_API_BASE}/conferences"
+        payload = {
+            "call_control_id": seed_call_control_id,
+            "name": name,
+            "start_conference_on_create": True,
+        }
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    endpoint, json=payload, headers=self._headers()
+                ) as response:
+                    body = await response.text()
+                    if response.status != 200:
+                        logger.error(
+                            f"Telnyx create_conference failed: "
+                            f"status={response.status} body={body}"
+                        )
+                        return None
+                    data = json.loads(body).get("data", {})
+                    conference_id = data.get("id")
+                    if not conference_id:
+                        logger.error(
+                            f"Telnyx create_conference response missing id: {body}"
+                        )
+                        return None
+                    logger.info(
+                        f"Telnyx conference {conference_id} created (name={name}, "
+                        f"seeded with {seed_call_control_id})"
+                    )
+                    return conference_id
+        except Exception as e:
+            logger.error(f"Exception during Telnyx create_conference: {e}")
+            return None

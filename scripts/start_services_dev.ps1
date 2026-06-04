@@ -1,13 +1,12 @@
 #!/usr/bin/env pwsh
 # Start Dograh services in development mode (Windows)
-# Usage: .\scripts\start_services_dev.ps1 [-ArqWorkers 2] [-NoMigrations] [-IncludeTelephonyWorkers]
+# Usage: .\scripts\start_services_dev.ps1 [-NoMigrations] [-IncludeTelephonyWorkers]
 #
 # Note: Telephony workers (ari_manager, campaign_orchestrator) are disabled by
 # default on Windows because they use Unix signal handlers not supported by the
 # Windows asyncio event loop.
 
 Param(
-    [int]$ArqWorkers = 1,
     [switch]$NoMigrations,
     [switch]$IncludeTelephonyWorkers
 )
@@ -22,7 +21,7 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $BaseDir   = Split-Path -Parent $ScriptDir
 Set-Location $BaseDir
 
-$EnvFile    = Join-Path $BaseDir 'api/.env'
+$EnvFile    = if ($env:DOGRAH_ENV_FILE) { $env:DOGRAH_ENV_FILE } else { Join-Path $BaseDir 'api/.env' }
 $RunDir     = Join-Path $BaseDir 'run'
 $LogsRoot   = Join-Path $BaseDir 'logs'
 $LatestDir  = Join-Path $LogsRoot 'latest'
@@ -30,6 +29,7 @@ $VenvPath   = Join-Path $BaseDir 'venv'
 
 Write-Host "Starting Dograh Services (DEV MODE) in BASE_DIR: $BaseDir"
 Write-Host "Auto-reload enabled for api/ directory changes"
+Write-Host "Environment file: $EnvFile"
 
 ###############################################################################
 ### 1) Load environment variables
@@ -47,7 +47,11 @@ if (Test-Path $EnvFile) {
     }
 }
 
-if (-not $env:UVICORN_BASE_PORT) { $env:UVICORN_BASE_PORT = '8000' }
+if (-not $env:UVICORN_BASE_PORT)   { $env:UVICORN_BASE_PORT = '8000' }
+
+$HealthEndpoint    = '/api/v1/health'
+$HealthMaxAttempts = if ($env:HEALTH_MAX_ATTEMPTS) { [int]$env:HEALTH_MAX_ATTEMPTS } else { 30 }
+$HealthInterval    = if ($env:HEALTH_INTERVAL)     { [int]$env:HEALTH_INTERVAL }     else { 2 }
 
 ###############################################################################
 ### 2) Define services
@@ -61,10 +65,7 @@ if ($IncludeTelephonyWorkers) {
 }
 
 $serviceSpecs += @{ Name = 'uvicorn'; Cmd = "uvicorn api.app:app --host 0.0.0.0 --port $($env:UVICORN_BASE_PORT) --reload --reload-dir api" }
-
-for ($i = 1; $i -le $ArqWorkers; $i++) {
-    $serviceSpecs += @{ Name = "arq$i"; Cmd = "python -m arq api.tasks.arq.WorkerSettings --custom-log-dict api.tasks.arq.LOG_CONFIG" }
-}
+$serviceSpecs += @{ Name = 'arq';     Cmd = "python -m arq api.tasks.arq.WorkerSettings --custom-log-dict api.tasks.arq.LOG_CONFIG" }
 
 ###############################################################################
 ### 3) Activate virtual environment
@@ -133,7 +134,35 @@ foreach ($spec in $serviceSpecs) {
 }
 
 ###############################################################################
-### 8) Summary
+### 8) Wait for uvicorn health check
+###############################################################################
+
+$healthUrl = "http://127.0.0.1:$($env:UVICORN_BASE_PORT)$HealthEndpoint"
+Write-Host "Waiting for uvicorn health check at $healthUrl ..."
+
+$healthy = $false
+for ($attempt = 1; $attempt -le $HealthMaxAttempts; $attempt++) {
+    try {
+        $resp = Invoke-WebRequest -Uri $healthUrl -UseBasicParsing -TimeoutSec 2 -ErrorAction Stop
+        if ($resp.StatusCode -eq 200) {
+            Write-Host "OK uvicorn healthy (attempt $attempt)"
+            $healthy = $true
+            break
+        }
+    } catch {
+        # connection refused / timeout / non-200 — keep polling
+    }
+    Start-Sleep -Seconds $HealthInterval
+}
+
+if (-not $healthy) {
+    Write-Host "FAIL uvicorn FAILED health check after $HealthMaxAttempts attempts."
+    Write-Host "     Check logs: Get-Content logs/latest/uvicorn.log -Wait"
+    exit 1
+}
+
+###############################################################################
+### 9) Summary
 ###############################################################################
 
 Write-Host ""

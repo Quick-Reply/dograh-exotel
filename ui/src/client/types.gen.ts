@@ -137,28 +137,6 @@ export type AriConfigurationResponse = {
 };
 
 /**
- * AccessTokenResponse
- */
-export type AccessTokenResponse = {
-    /**
-     * Access Token
-     */
-    access_token: string | null;
-    /**
-     * Refresh Token
-     */
-    refresh_token: string | null;
-    /**
-     * Expires At
-     */
-    expires_at: string | null;
-    /**
-     * Connection Id
-     */
-    connection_id: string;
-};
-
-/**
  * AmbientNoiseUploadRequest
  */
 export type AmbientNoiseUploadRequest = {
@@ -198,6 +176,20 @@ export type AmbientNoiseUploadResponse = {
      * Storage Backend
      */
     storage_backend: string;
+};
+
+/**
+ * AppendTextChatMessageRequest
+ */
+export type AppendTextChatMessageRequest = {
+    /**
+     * Text
+     */
+    text: string;
+    /**
+     * Expected Revision
+     */
+    expected_revision?: number | null;
 };
 
 /**
@@ -298,19 +290,19 @@ export type BodyTranscribeAudioApiV1WorkflowRecordingsTranscribePost = {
 /**
  * CalculatorToolDefinition
  *
- * Tool definition for Calculator tools (no configuration needed).
+ * Tool definition for Calculator tools.
  */
 export type CalculatorToolDefinition = {
     /**
      * Schema Version
      *
-     * Schema version
+     * Schema version.
      */
     schema_version?: number;
     /**
      * Type
      *
-     * Tool type
+     * Tool type.
      */
     type: 'calculator';
 };
@@ -873,31 +865,13 @@ export type CreateCredentialRequest = {
 };
 
 /**
- * CreateLoadTestRequest
+ * CreateFolderRequest
  */
-export type CreateLoadTestRequest = {
+export type CreateFolderRequest = {
     /**
-     * Name Prefix
+     * Name
      */
-    name_prefix: string;
-    /**
-     * Actor Workflow Id
-     */
-    actor_workflow_id: number;
-    /**
-     * Adversary Workflow Id
-     */
-    adversary_workflow_id: number;
-    /**
-     * Test Count
-     */
-    test_count: number;
-    /**
-     * Config
-     */
-    config?: {
-        [key: string]: unknown;
-    };
+    name: string;
 };
 
 /**
@@ -941,57 +915,67 @@ export type CreateServiceKeyResponse = {
 };
 
 /**
- * CreateTestSessionRequest
+ * CreateTextChatSessionRequest
  */
-export type CreateTestSessionRequest = {
+export type CreateTextChatSessionRequest = {
     /**
      * Name
      */
-    name: string;
+    name?: string | null;
     /**
-     * Actor Workflow Id
+     * Initial Context
      */
-    actor_workflow_id: number;
-    /**
-     * Adversary Workflow Id
-     */
-    adversary_workflow_id: number;
-    /**
-     * Config
-     */
-    config?: {
+    initial_context?: {
         [key: string]: unknown;
-    };
+    } | null;
+    /**
+     * Annotations
+     */
+    annotations?: {
+        [key: string]: unknown;
+    } | null;
 };
 
 /**
  * CreateToolRequest
  *
- * Request schema for creating a tool.
+ * Request schema for creating a reusable tool.
  */
 export type CreateToolRequest = {
     /**
      * Name
+     *
+     * Display name for the tool.
      */
     name: string;
     /**
      * Description
+     *
+     * Description shown to the agent when deciding whether to call it.
      */
     description?: string | null;
     /**
      * Category
+     *
+     * Tool category. Must match definition.type.
      */
-    category?: string;
+    category?: 'http_api' | 'end_call' | 'transfer_call' | 'calculator' | 'native' | 'integration' | 'mcp';
     /**
      * Icon
+     *
+     * Lucide icon identifier.
      */
     icon?: string | null;
     /**
      * Icon Color
+     *
+     * Hex color for the tool icon.
      */
     icon_color?: string | null;
     /**
      * Definition
+     *
+     * Typed tool definition.
      */
     definition: ({
         type: 'http_api';
@@ -1001,7 +985,9 @@ export type CreateToolRequest = {
         type: 'transfer_call';
     } & TransferCallToolDefinition) | ({
         type: 'calculator';
-    } & CalculatorToolDefinition);
+    } & CalculatorToolDefinition) | ({
+        type: 'mcp';
+    } & McpToolDefinition);
 };
 
 /**
@@ -1659,31 +1645,31 @@ export type EndCallConfig = {
     /**
      * Messagetype
      *
-     * Type of goodbye message
+     * Type of goodbye message.
      */
     messageType?: 'none' | 'custom' | 'audio';
     /**
      * Custommessage
      *
-     * Custom message to play before ending the call
+     * Custom message to play before ending the call.
      */
     customMessage?: string | null;
     /**
      * Audiorecordingid
      *
-     * Recording ID for audio goodbye message
+     * Recording ID for audio goodbye message.
      */
     audioRecordingId?: string | null;
     /**
      * Endcallreason
      *
-     * When enabled, LLM must provide a reason for ending the call. The reason is set as call disposition and added to call tags.
+     * When enabled, the model must provide a reason for ending the call. The reason is set as call disposition and added to call tags.
      */
     endCallReason?: boolean;
     /**
      * Endcallreasondescription
      *
-     * Description shown to the LLM for the reason parameter. Used only when endCallReason is enabled.
+     * Description shown to the model for the reason parameter. Used only when endCallReason is enabled.
      */
     endCallReasonDescription?: string | null;
 };
@@ -1697,17 +1683,17 @@ export type EndCallToolDefinition = {
     /**
      * Schema Version
      *
-     * Schema version
+     * Schema version.
      */
     schema_version?: number;
     /**
      * Type
      *
-     * Tool type
+     * Tool type.
      */
     type: 'end_call';
     /**
-     * End Call configuration
+     * End Call configuration.
      */
     config: EndCallConfig;
 };
@@ -1752,6 +1738,24 @@ export type FileMetadataResponse = {
     metadata: {
         [key: string]: unknown;
     } | null;
+};
+
+/**
+ * FolderResponse
+ */
+export type FolderResponse = {
+    /**
+     * Id
+     */
+    id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Created At
+     */
+    created_at: string;
 };
 
 /**
@@ -1831,19 +1835,19 @@ export type HttpApiConfig = {
     /**
      * Method
      *
-     * HTTP method (GET, POST, PUT, PATCH, DELETE)
+     * HTTP method to use for the request.
      */
-    method: string;
+    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
     /**
      * Url
      *
-     * Target URL
+     * Target HTTP or HTTPS URL.
      */
     url: string;
     /**
      * Headers
      *
-     * Static headers to include
+     * Static headers to include with every request.
      */
     headers?: {
         [key: string]: string;
@@ -1851,37 +1855,43 @@ export type HttpApiConfig = {
     /**
      * Credential Uuid
      *
-     * Reference to ExternalCredentialModel for auth
+     * Reference to an external credential for request authentication.
      */
     credential_uuid?: string | null;
     /**
      * Parameters
      *
-     * Parameters that the tool accepts from LLM
+     * Parameters the model must provide when calling this tool.
      */
     parameters?: Array<ToolParameter> | null;
     /**
+     * Preset Parameters
+     *
+     * Parameters injected by Dograh from fixed values or workflow context templates.
+     */
+    preset_parameters?: Array<PresetToolParameter> | null;
+    /**
      * Timeout Ms
      *
-     * Request timeout in milliseconds
+     * Request timeout in milliseconds.
      */
     timeout_ms?: number | null;
     /**
      * Custommessage
      *
-     * Custom message to play after tool execution
+     * Custom message to play after tool execution.
      */
     customMessage?: string | null;
     /**
      * Custommessagetype
      *
-     * Type of custom message: text or audio
+     * Type of custom message.
      */
     customMessageType?: 'text' | 'audio' | null;
     /**
      * Custommessagerecordingid
      *
-     * Recording ID for audio custom message
+     * Recording ID for an audio custom message.
      */
     customMessageRecordingId?: string | null;
 };
@@ -1895,17 +1905,17 @@ export type HttpApiToolDefinition = {
     /**
      * Schema Version
      *
-     * Schema version
+     * Schema version.
      */
     schema_version?: number;
     /**
      * Type
      *
-     * Tool type
+     * Tool type.
      */
     type: 'http_api';
     /**
-     * HTTP API configuration
+     * HTTP API configuration.
      */
     config: HttpApiConfig;
 };
@@ -2010,50 +2020,6 @@ export type InitiateCallRequest = {
 };
 
 /**
- * IntegrationResponse
- */
-export type IntegrationResponse = {
-    /**
-     * Id
-     */
-    id: number;
-    /**
-     * Integration Id
-     */
-    integration_id: string;
-    /**
-     * Organisation Id
-     */
-    organisation_id: number;
-    /**
-     * Created By
-     */
-    created_by: number | null;
-    /**
-     * Provider
-     */
-    provider: string;
-    /**
-     * Is Active
-     */
-    is_active: boolean;
-    /**
-     * Created At
-     */
-    created_at: string;
-    /**
-     * Action
-     */
-    action: string;
-    /**
-     * Provider Data
-     */
-    provider_data: {
-        [key: string]: unknown;
-    };
-};
-
-/**
  * ItemKind
  */
 export type ItemKind = 'node' | 'edge' | 'workflow';
@@ -2112,38 +2078,6 @@ export type LastCampaignSettingsResponse = {
 };
 
 /**
- * LoadTestStatsResponse
- */
-export type LoadTestStatsResponse = {
-    /**
-     * Total
-     */
-    total: number;
-    /**
-     * Pending
-     */
-    pending: number;
-    /**
-     * Running
-     */
-    running: number;
-    /**
-     * Completed
-     */
-    completed: number;
-    /**
-     * Failed
-     */
-    failed: number;
-    /**
-     * Sessions
-     */
-    sessions: Array<{
-        [key: string]: unknown;
-    }>;
-};
-
-/**
  * LoginRequest
  */
 export type LoginRequest = {
@@ -2173,6 +2107,114 @@ export type MpsCreditsResponse = {
      * Total Quota
      */
     total_quota: number;
+};
+
+/**
+ * McpRefreshResponse
+ *
+ * Result of re-discovering an MCP server's tool catalog.
+ */
+export type McpRefreshResponse = {
+    /**
+     * Tool Uuid
+     */
+    tool_uuid: string;
+    /**
+     * Discovered Tools
+     */
+    discovered_tools?: Array<unknown>;
+    /**
+     * Error
+     */
+    error?: string | null;
+};
+
+/**
+ * McpToolConfig
+ *
+ * Configuration for a customer MCP server tool definition.
+ */
+export type McpToolConfig = {
+    /**
+     * Transport
+     *
+     * MCP transport protocol.
+     */
+    transport?: 'streamable_http';
+    /**
+     * Url
+     *
+     * MCP server URL. Must use http:// or https://.
+     */
+    url: string;
+    /**
+     * Credential Uuid
+     *
+     * Reference to an external credential for MCP server auth.
+     */
+    credential_uuid?: string | null;
+    /**
+     * Tools Filter
+     *
+     * Allowlist of MCP tool names to expose. Empty exposes all tools.
+     */
+    tools_filter?: Array<string>;
+    /**
+     * Timeout Secs
+     *
+     * Connection timeout in seconds.
+     */
+    timeout_secs?: number;
+    /**
+     * Sse Read Timeout Secs
+     *
+     * SSE read timeout in seconds.
+     */
+    sse_read_timeout_secs?: number;
+    /**
+     * Discovered Tools
+     *
+     * Server-managed cache of the MCP server's tool catalog [{name, description}]. Populated best-effort by the backend.
+     */
+    discovered_tools?: Array<{
+        [key: string]: unknown;
+    }>;
+};
+
+/**
+ * McpToolDefinition
+ *
+ * Persisted MCP tool definition.
+ */
+export type McpToolDefinition = {
+    /**
+     * Schema Version
+     *
+     * Schema version.
+     */
+    schema_version?: number;
+    /**
+     * Type
+     *
+     * Tool type.
+     */
+    type: 'mcp';
+    /**
+     * MCP server configuration.
+     */
+    config: McpToolConfig;
+};
+
+/**
+ * MoveWorkflowToFolderRequest
+ *
+ * Move a workflow into a folder, or to "Uncategorized" when null.
+ */
+export type MoveWorkflowToFolderRequest = {
+    /**
+     * Folder Id
+     */
+    folder_id?: number | null;
 };
 
 /**
@@ -2478,6 +2520,38 @@ export type PlivoConfigurationResponse = {
      * From Numbers
      */
     from_numbers: Array<string>;
+};
+
+/**
+ * PresetToolParameter
+ *
+ * A parameter injected by Dograh at runtime.
+ */
+export type PresetToolParameter = {
+    /**
+     * Name
+     *
+     * Parameter name used as a key in the request body.
+     */
+    name: string;
+    /**
+     * Type
+     *
+     * JSON type for the resolved value.
+     */
+    type: 'string' | 'number' | 'boolean' | 'object' | 'array';
+    /**
+     * Value Template
+     *
+     * Fixed value or template, e.g. {{initial_context.phone_number}}.
+     */
+    value_template: string;
+    /**
+     * Required
+     *
+     * Whether the parameter must resolve to a non-empty value.
+     */
+    required?: boolean;
 };
 
 /**
@@ -2947,6 +3021,20 @@ export type RetryConfigResponse = {
 };
 
 /**
+ * RewindTextChatSessionRequest
+ */
+export type RewindTextChatSessionRequest = {
+    /**
+     * Cursor Turn Id
+     */
+    cursor_turn_id?: string | null;
+    /**
+     * Expected Revision
+     */
+    expected_revision?: number | null;
+};
+
+/**
  * S3SignedUrlResponse
  */
 export type S3SignedUrlResponse = {
@@ -3036,20 +3124,6 @@ export type ServiceKeyResponse = {
      * Created By
      */
     created_by?: string | null;
-};
-
-/**
- * SessionResponse
- */
-export type SessionResponse = {
-    /**
-     * Session Token
-     */
-    session_token: string;
-    /**
-     * Expires At
-     */
-    expires_at: string;
 };
 
 /**
@@ -3172,6 +3246,22 @@ export type SuperuserWorkflowRunsListResponse = {
      * Total Pages
      */
     total_pages: number;
+};
+
+/**
+ * TelephonyConfigWarningsResponse
+ *
+ * Aggregated telephony-configuration warning counts for the user's org.
+ *
+ * Drives the page banner and nav badge that nudge customers to finish
+ * optional-but-recommended configuration steps. Shape is a flat dict so
+ * new warning types can be added without breaking the client.
+ */
+export type TelephonyConfigWarningsResponse = {
+    /**
+     * Telnyx Missing Webhook Public Key Count
+     */
+    telnyx_missing_webhook_public_key_count: number;
 };
 
 /**
@@ -3441,6 +3531,12 @@ export type TelnyxConfigurationRequest = {
      */
     connection_id?: string | null;
     /**
+     * Webhook Public Key
+     *
+     * Webhook public key from Mission Control Portal → Keys & Credentials → Public Key. Used to verify Telnyx webhook signatures.
+     */
+    webhook_public_key?: string | null;
+    /**
      * From Numbers
      *
      * List of Telnyx phone numbers
@@ -3467,71 +3563,13 @@ export type TelnyxConfigurationResponse = {
      */
     connection_id?: string | null;
     /**
+     * Webhook Public Key
+     */
+    webhook_public_key?: string | null;
+    /**
      * From Numbers
      */
     from_numbers: Array<string>;
-};
-
-/**
- * TestSessionResponse
- */
-export type TestSessionResponse = {
-    /**
-     * Id
-     */
-    id: number;
-    /**
-     * Name
-     */
-    name: string;
-    /**
-     * Status
-     */
-    status: string;
-    /**
-     * Actor Workflow Id
-     */
-    actor_workflow_id: number;
-    /**
-     * Adversary Workflow Id
-     */
-    adversary_workflow_id: number;
-    /**
-     * Load Test Group Id
-     */
-    load_test_group_id: string | null;
-    /**
-     * Test Index
-     */
-    test_index: number | null;
-    /**
-     * Config
-     */
-    config: {
-        [key: string]: unknown;
-    };
-    /**
-     * Results
-     */
-    results: {
-        [key: string]: unknown;
-    } | null;
-    /**
-     * Error
-     */
-    error: string | null;
-    /**
-     * Created At
-     */
-    created_at: string;
-    /**
-     * Started At
-     */
-    started_at: string | null;
-    /**
-     * Completed At
-     */
-    completed_at: string | null;
 };
 
 /**
@@ -3573,31 +3611,31 @@ export type TimeSlotResponse = {
 /**
  * ToolParameter
  *
- * A parameter that the tool accepts.
+ * A parameter that the tool accepts from the model at call time.
  */
 export type ToolParameter = {
     /**
      * Name
      *
-     * Parameter name (used as key in request body)
+     * Parameter name used as a key in the tool request body.
      */
     name: string;
     /**
      * Type
      *
-     * Parameter type: string, number, or boolean
+     * JSON type for the parameter value.
      */
-    type: string;
+    type: 'string' | 'number' | 'boolean' | 'object' | 'array';
     /**
      * Description
      *
-     * Description of what this parameter is for
+     * Description shown to the model for this parameter.
      */
     description: string;
     /**
      * Required
      *
-     * Whether this parameter is required
+     * Whether this parameter is required when the tool is called.
      */
     required?: boolean;
 };
@@ -3605,7 +3643,7 @@ export type ToolParameter = {
 /**
  * ToolResponse
  *
- * Response schema for a tool.
+ * Response schema for a reusable tool.
  */
 export type ToolResponse = {
     /**
@@ -3666,31 +3704,31 @@ export type TransferCallConfig = {
     /**
      * Destination
      *
-     * Phone number or SIP endpoint to transfer the call to (E.164 format e.g., +1234567890, or SIP endpoint e.g., PJSIP/1234)
+     * Phone number or SIP endpoint to transfer the call to, e.g. +1234567890 or PJSIP/1234.
      */
     destination: string;
     /**
      * Messagetype
      *
-     * Type of message to play before transfer
+     * Type of message to play before transfer.
      */
     messageType?: 'none' | 'custom' | 'audio';
     /**
      * Custommessage
      *
-     * Custom message to play before transferring the call
+     * Custom message to play before transferring.
      */
     customMessage?: string | null;
     /**
      * Audiorecordingid
      *
-     * Recording ID for audio message before transfer
+     * Recording ID for audio message before transfer.
      */
     audioRecordingId?: string | null;
     /**
      * Timeout
      *
-     * Maximum time in seconds to wait for destination to answer (5-120 seconds)
+     * Maximum seconds to wait for the destination to answer.
      */
     timeout?: number;
 };
@@ -3704,17 +3742,17 @@ export type TransferCallToolDefinition = {
     /**
      * Schema Version
      *
-     * Schema version
+     * Schema version.
      */
     schema_version?: number;
     /**
      * Type
      *
-     * Tool type
+     * Tool type.
      */
     type: 'transfer_call';
     /**
-     * Transfer Call configuration
+     * Transfer Call configuration.
      */
     config: TransferCallConfig;
 };
@@ -3880,21 +3918,19 @@ export type UpdateCredentialRequest = {
 };
 
 /**
- * UpdateIntegrationRequest
+ * UpdateFolderRequest
  */
-export type UpdateIntegrationRequest = {
+export type UpdateFolderRequest = {
     /**
-     * Selected Files
+     * Name
      */
-    selected_files: Array<{
-        [key: string]: unknown;
-    }>;
+    name: string;
 };
 
 /**
  * UpdateToolRequest
  *
- * Request schema for updating a tool.
+ * Request schema for updating a reusable tool.
  */
 export type UpdateToolRequest = {
     /**
@@ -3924,7 +3960,9 @@ export type UpdateToolRequest = {
         type: 'transfer_call';
     } & TransferCallToolDefinition) | ({
         type: 'calculator';
-    } & CalculatorToolDefinition) | null;
+    } & CalculatorToolDefinition) | ({
+        type: 'mcp';
+    } & McpToolDefinition) | null;
     /**
      * Status
      */
@@ -4383,6 +4421,14 @@ export type WorkflowListResponse = {
      * Total Runs
      */
     total_runs: number;
+    /**
+     * Folder Id
+     */
+    folder_id?: number | null;
+    /**
+     * Workflow Uuid
+     */
+    workflow_uuid?: string | null;
 };
 
 /**
@@ -4531,9 +4577,27 @@ export type WorkflowRunResponseSchema = {
      */
     recording_url: string | null;
     /**
+     * Transcript Public Url
+     */
+    transcript_public_url?: string | null;
+    /**
+     * Recording Public Url
+     */
+    recording_public_url?: string | null;
+    /**
+     * Public Access Token
+     */
+    public_access_token?: string | null;
+    /**
      * Cost Info
      */
     cost_info: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Usage Info
+     */
+    usage_info?: {
         [key: string]: unknown;
     } | null;
     /**
@@ -4565,6 +4629,78 @@ export type WorkflowRunResponseSchema = {
     annotations?: {
         [key: string]: unknown;
     } | null;
+};
+
+/**
+ * WorkflowRunTextSessionResponse
+ */
+export type WorkflowRunTextSessionResponse = {
+    /**
+     * Workflow Run Id
+     */
+    workflow_run_id: number;
+    /**
+     * Workflow Id
+     */
+    workflow_id: number;
+    /**
+     * Name
+     */
+    name: string;
+    /**
+     * Mode
+     */
+    mode: string;
+    /**
+     * State
+     */
+    state: string;
+    /**
+     * Is Completed
+     */
+    is_completed: boolean;
+    /**
+     * Revision
+     */
+    revision: number;
+    /**
+     * Initial Context
+     */
+    initial_context?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Gathered Context
+     */
+    gathered_context?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Annotations
+     */
+    annotations?: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * Session Data
+     */
+    session_data: {
+        [key: string]: unknown;
+    };
+    /**
+     * Checkpoint
+     */
+    checkpoint: {
+        [key: string]: unknown;
+    };
+    /**
+     * Created At
+     */
+    created_at: string;
+    /**
+     * Updated At
+     */
+    updated_at?: string | null;
 };
 
 /**
@@ -4608,6 +4744,18 @@ export type WorkflowRunUsageResponse = {
      */
     transcript_url?: string | null;
     /**
+     * Recording Public Url
+     */
+    recording_public_url?: string | null;
+    /**
+     * Transcript Public Url
+     */
+    transcript_public_url?: string | null;
+    /**
+     * Public Access Token
+     */
+    public_access_token?: string | null;
+    /**
      * Phone Number
      *
      * Deprecated. Use caller_number and called_number instead.
@@ -4627,6 +4775,10 @@ export type WorkflowRunUsageResponse = {
      * Call Type
      */
     call_type?: string | null;
+    /**
+     * Mode
+     */
+    mode?: string | null;
     /**
      * Disposition
      */
@@ -4965,20 +5117,6 @@ export type HandleCloudonixCdrApiV1TelephonyCloudonixCdrPostResponses = {
 
 export type HandlePlivoHangupCallbackApiV1TelephonyPlivoHangupCallbackWorkflowRunIdPostData = {
     body?: never;
-    headers?: {
-        /**
-         * X-Plivo-Signature-V3
-         */
-        'x-plivo-signature-v3'?: string | null;
-        /**
-         * X-Plivo-Signature-Ma-V3
-         */
-        'x-plivo-signature-ma-v3'?: string | null;
-        /**
-         * X-Plivo-Signature-V3-Nonce
-         */
-        'x-plivo-signature-v3-nonce'?: string | null;
-    };
     path: {
         /**
          * Workflow Run Id
@@ -5011,20 +5149,6 @@ export type HandlePlivoHangupCallbackApiV1TelephonyPlivoHangupCallbackWorkflowRu
 
 export type HandlePlivoRingCallbackApiV1TelephonyPlivoRingCallbackWorkflowRunIdPostData = {
     body?: never;
-    headers?: {
-        /**
-         * X-Plivo-Signature-V3
-         */
-        'x-plivo-signature-v3'?: string | null;
-        /**
-         * X-Plivo-Signature-Ma-V3
-         */
-        'x-plivo-signature-ma-v3'?: string | null;
-        /**
-         * X-Plivo-Signature-V3-Nonce
-         */
-        'x-plivo-signature-v3-nonce'?: string | null;
-    };
     path: {
         /**
          * Workflow Run Id
@@ -5087,14 +5211,40 @@ export type HandleTelnyxEventsApiV1TelephonyTelnyxEventsWorkflowRunIdPostRespons
     200: unknown;
 };
 
+export type HandleTelnyxTransferResultApiV1TelephonyTelnyxTransferResultTransferIdPostData = {
+    body?: never;
+    path: {
+        /**
+         * Transfer Id
+         */
+        transfer_id: string;
+    };
+    query?: never;
+    url: '/api/v1/telephony/telnyx/transfer-result/{transfer_id}';
+};
+
+export type HandleTelnyxTransferResultApiV1TelephonyTelnyxTransferResultTransferIdPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type HandleTelnyxTransferResultApiV1TelephonyTelnyxTransferResultTransferIdPostError = HandleTelnyxTransferResultApiV1TelephonyTelnyxTransferResultTransferIdPostErrors[keyof HandleTelnyxTransferResultApiV1TelephonyTelnyxTransferResultTransferIdPostErrors];
+
+export type HandleTelnyxTransferResultApiV1TelephonyTelnyxTransferResultTransferIdPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: unknown;
+};
+
 export type HandleTwilioStatusCallbackApiV1TelephonyTwilioStatusCallbackWorkflowRunIdPostData = {
     body?: never;
-    headers?: {
-        /**
-         * X-Webhook-Signature
-         */
-        'x-webhook-signature'?: string | null;
-    };
     path: {
         /**
          * Workflow Run Id
@@ -5878,6 +6028,50 @@ export type UpdateWorkflowStatusApiV1WorkflowWorkflowIdStatusPutResponses = {
 
 export type UpdateWorkflowStatusApiV1WorkflowWorkflowIdStatusPutResponse = UpdateWorkflowStatusApiV1WorkflowWorkflowIdStatusPutResponses[keyof UpdateWorkflowStatusApiV1WorkflowWorkflowIdStatusPutResponses];
 
+export type MoveWorkflowToFolderApiV1WorkflowWorkflowIdFolderPutData = {
+    body: MoveWorkflowToFolderRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflow/{workflow_id}/folder';
+};
+
+export type MoveWorkflowToFolderApiV1WorkflowWorkflowIdFolderPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type MoveWorkflowToFolderApiV1WorkflowWorkflowIdFolderPutError = MoveWorkflowToFolderApiV1WorkflowWorkflowIdFolderPutErrors[keyof MoveWorkflowToFolderApiV1WorkflowWorkflowIdFolderPutErrors];
+
+export type MoveWorkflowToFolderApiV1WorkflowWorkflowIdFolderPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: WorkflowListResponse;
+};
+
+export type MoveWorkflowToFolderApiV1WorkflowWorkflowIdFolderPutResponse = MoveWorkflowToFolderApiV1WorkflowWorkflowIdFolderPutResponses[keyof MoveWorkflowToFolderApiV1WorkflowWorkflowIdFolderPutResponses];
+
 export type UpdateWorkflowApiV1WorkflowWorkflowIdPutData = {
     body: UpdateWorkflowRequest;
     headers?: {
@@ -6286,6 +6480,194 @@ export type GetAmbientNoiseUploadUrlApiV1WorkflowAmbientNoiseUploadUrlPostRespon
 };
 
 export type GetAmbientNoiseUploadUrlApiV1WorkflowAmbientNoiseUploadUrlPostResponse = GetAmbientNoiseUploadUrlApiV1WorkflowAmbientNoiseUploadUrlPostResponses[keyof GetAmbientNoiseUploadUrlApiV1WorkflowAmbientNoiseUploadUrlPostResponses];
+
+export type CreateTextChatSessionApiV1WorkflowWorkflowIdTextChatSessionsPostData = {
+    body: CreateTextChatSessionRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflow/{workflow_id}/text-chat/sessions';
+};
+
+export type CreateTextChatSessionApiV1WorkflowWorkflowIdTextChatSessionsPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateTextChatSessionApiV1WorkflowWorkflowIdTextChatSessionsPostError = CreateTextChatSessionApiV1WorkflowWorkflowIdTextChatSessionsPostErrors[keyof CreateTextChatSessionApiV1WorkflowWorkflowIdTextChatSessionsPostErrors];
+
+export type CreateTextChatSessionApiV1WorkflowWorkflowIdTextChatSessionsPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: WorkflowRunTextSessionResponse;
+};
+
+export type CreateTextChatSessionApiV1WorkflowWorkflowIdTextChatSessionsPostResponse = CreateTextChatSessionApiV1WorkflowWorkflowIdTextChatSessionsPostResponses[keyof CreateTextChatSessionApiV1WorkflowWorkflowIdTextChatSessionsPostResponses];
+
+export type GetTextChatSessionApiV1WorkflowWorkflowIdTextChatSessionsRunIdGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+        /**
+         * Run Id
+         */
+        run_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflow/{workflow_id}/text-chat/sessions/{run_id}';
+};
+
+export type GetTextChatSessionApiV1WorkflowWorkflowIdTextChatSessionsRunIdGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetTextChatSessionApiV1WorkflowWorkflowIdTextChatSessionsRunIdGetError = GetTextChatSessionApiV1WorkflowWorkflowIdTextChatSessionsRunIdGetErrors[keyof GetTextChatSessionApiV1WorkflowWorkflowIdTextChatSessionsRunIdGetErrors];
+
+export type GetTextChatSessionApiV1WorkflowWorkflowIdTextChatSessionsRunIdGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: WorkflowRunTextSessionResponse;
+};
+
+export type GetTextChatSessionApiV1WorkflowWorkflowIdTextChatSessionsRunIdGetResponse = GetTextChatSessionApiV1WorkflowWorkflowIdTextChatSessionsRunIdGetResponses[keyof GetTextChatSessionApiV1WorkflowWorkflowIdTextChatSessionsRunIdGetResponses];
+
+export type AppendTextChatMessageApiV1WorkflowWorkflowIdTextChatSessionsRunIdMessagesPostData = {
+    body: AppendTextChatMessageRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+        /**
+         * Run Id
+         */
+        run_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflow/{workflow_id}/text-chat/sessions/{run_id}/messages';
+};
+
+export type AppendTextChatMessageApiV1WorkflowWorkflowIdTextChatSessionsRunIdMessagesPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type AppendTextChatMessageApiV1WorkflowWorkflowIdTextChatSessionsRunIdMessagesPostError = AppendTextChatMessageApiV1WorkflowWorkflowIdTextChatSessionsRunIdMessagesPostErrors[keyof AppendTextChatMessageApiV1WorkflowWorkflowIdTextChatSessionsRunIdMessagesPostErrors];
+
+export type AppendTextChatMessageApiV1WorkflowWorkflowIdTextChatSessionsRunIdMessagesPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: WorkflowRunTextSessionResponse;
+};
+
+export type AppendTextChatMessageApiV1WorkflowWorkflowIdTextChatSessionsRunIdMessagesPostResponse = AppendTextChatMessageApiV1WorkflowWorkflowIdTextChatSessionsRunIdMessagesPostResponses[keyof AppendTextChatMessageApiV1WorkflowWorkflowIdTextChatSessionsRunIdMessagesPostResponses];
+
+export type RewindTextChatSessionApiV1WorkflowWorkflowIdTextChatSessionsRunIdRewindPostData = {
+    body: RewindTextChatSessionRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Workflow Id
+         */
+        workflow_id: number;
+        /**
+         * Run Id
+         */
+        run_id: number;
+    };
+    query?: never;
+    url: '/api/v1/workflow/{workflow_id}/text-chat/sessions/{run_id}/rewind';
+};
+
+export type RewindTextChatSessionApiV1WorkflowWorkflowIdTextChatSessionsRunIdRewindPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RewindTextChatSessionApiV1WorkflowWorkflowIdTextChatSessionsRunIdRewindPostError = RewindTextChatSessionApiV1WorkflowWorkflowIdTextChatSessionsRunIdRewindPostErrors[keyof RewindTextChatSessionApiV1WorkflowWorkflowIdTextChatSessionsRunIdRewindPostErrors];
+
+export type RewindTextChatSessionApiV1WorkflowWorkflowIdTextChatSessionsRunIdRewindPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: WorkflowRunTextSessionResponse;
+};
+
+export type RewindTextChatSessionApiV1WorkflowWorkflowIdTextChatSessionsRunIdRewindPostResponse = RewindTextChatSessionApiV1WorkflowWorkflowIdTextChatSessionsRunIdRewindPostResponses[keyof RewindTextChatSessionApiV1WorkflowWorkflowIdTextChatSessionsRunIdRewindPostResponses];
 
 export type GetDefaultConfigurationsApiV1UserConfigurationsDefaultsGetData = {
     body?: never;
@@ -7702,6 +8084,50 @@ export type UpdateToolApiV1ToolsToolUuidPutResponses = {
 
 export type UpdateToolApiV1ToolsToolUuidPutResponse = UpdateToolApiV1ToolsToolUuidPutResponses[keyof UpdateToolApiV1ToolsToolUuidPutResponses];
 
+export type RefreshMcpToolsApiV1ToolsToolUuidMcpRefreshPostData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Tool Uuid
+         */
+        tool_uuid: string;
+    };
+    query?: never;
+    url: '/api/v1/tools/{tool_uuid}/mcp/refresh';
+};
+
+export type RefreshMcpToolsApiV1ToolsToolUuidMcpRefreshPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RefreshMcpToolsApiV1ToolsToolUuidMcpRefreshPostError = RefreshMcpToolsApiV1ToolsToolUuidMcpRefreshPostErrors[keyof RefreshMcpToolsApiV1ToolsToolUuidMcpRefreshPostErrors];
+
+export type RefreshMcpToolsApiV1ToolsToolUuidMcpRefreshPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: McpRefreshResponse;
+};
+
+export type RefreshMcpToolsApiV1ToolsToolUuidMcpRefreshPostResponse = RefreshMcpToolsApiV1ToolsToolUuidMcpRefreshPostResponses[keyof RefreshMcpToolsApiV1ToolsToolUuidMcpRefreshPostResponses];
+
 export type UnarchiveToolApiV1ToolsToolUuidUnarchivePostData = {
     body?: never;
     headers?: {
@@ -7746,174 +8172,6 @@ export type UnarchiveToolApiV1ToolsToolUuidUnarchivePostResponses = {
 
 export type UnarchiveToolApiV1ToolsToolUuidUnarchivePostResponse = UnarchiveToolApiV1ToolsToolUuidUnarchivePostResponses[keyof UnarchiveToolApiV1ToolsToolUuidUnarchivePostResponses];
 
-export type GetIntegrationsApiV1IntegrationGetData = {
-    body?: never;
-    headers?: {
-        /**
-         * Authorization
-         */
-        authorization?: string | null;
-        /**
-         * X-Api-Key
-         */
-        'X-API-Key'?: string | null;
-    };
-    path?: never;
-    query?: never;
-    url: '/api/v1/integration/';
-};
-
-export type GetIntegrationsApiV1IntegrationGetErrors = {
-    /**
-     * Not found
-     */
-    404: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetIntegrationsApiV1IntegrationGetError = GetIntegrationsApiV1IntegrationGetErrors[keyof GetIntegrationsApiV1IntegrationGetErrors];
-
-export type GetIntegrationsApiV1IntegrationGetResponses = {
-    /**
-     * Response Get Integrations Api V1 Integration  Get
-     *
-     * Successful Response
-     */
-    200: Array<IntegrationResponse>;
-};
-
-export type GetIntegrationsApiV1IntegrationGetResponse = GetIntegrationsApiV1IntegrationGetResponses[keyof GetIntegrationsApiV1IntegrationGetResponses];
-
-export type CreateSessionApiV1IntegrationSessionPostData = {
-    body?: never;
-    headers?: {
-        /**
-         * Authorization
-         */
-        authorization?: string | null;
-        /**
-         * X-Api-Key
-         */
-        'X-API-Key'?: string | null;
-    };
-    path?: never;
-    query?: never;
-    url: '/api/v1/integration/session';
-};
-
-export type CreateSessionApiV1IntegrationSessionPostErrors = {
-    /**
-     * Not found
-     */
-    404: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type CreateSessionApiV1IntegrationSessionPostError = CreateSessionApiV1IntegrationSessionPostErrors[keyof CreateSessionApiV1IntegrationSessionPostErrors];
-
-export type CreateSessionApiV1IntegrationSessionPostResponses = {
-    /**
-     * Successful Response
-     */
-    200: SessionResponse;
-};
-
-export type CreateSessionApiV1IntegrationSessionPostResponse = CreateSessionApiV1IntegrationSessionPostResponses[keyof CreateSessionApiV1IntegrationSessionPostResponses];
-
-export type UpdateIntegrationApiV1IntegrationIntegrationIdPutData = {
-    body: UpdateIntegrationRequest;
-    headers?: {
-        /**
-         * Authorization
-         */
-        authorization?: string | null;
-        /**
-         * X-Api-Key
-         */
-        'X-API-Key'?: string | null;
-    };
-    path: {
-        /**
-         * Integration Id
-         */
-        integration_id: number;
-    };
-    query?: never;
-    url: '/api/v1/integration/{integration_id}';
-};
-
-export type UpdateIntegrationApiV1IntegrationIntegrationIdPutErrors = {
-    /**
-     * Not found
-     */
-    404: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type UpdateIntegrationApiV1IntegrationIntegrationIdPutError = UpdateIntegrationApiV1IntegrationIntegrationIdPutErrors[keyof UpdateIntegrationApiV1IntegrationIntegrationIdPutErrors];
-
-export type UpdateIntegrationApiV1IntegrationIntegrationIdPutResponses = {
-    /**
-     * Successful Response
-     */
-    200: IntegrationResponse;
-};
-
-export type UpdateIntegrationApiV1IntegrationIntegrationIdPutResponse = UpdateIntegrationApiV1IntegrationIntegrationIdPutResponses[keyof UpdateIntegrationApiV1IntegrationIntegrationIdPutResponses];
-
-export type GetIntegrationAccessTokenApiV1IntegrationIntegrationIdAccessTokenGetData = {
-    body?: never;
-    headers?: {
-        /**
-         * Authorization
-         */
-        authorization?: string | null;
-        /**
-         * X-Api-Key
-         */
-        'X-API-Key'?: string | null;
-    };
-    path: {
-        /**
-         * Integration Id
-         */
-        integration_id: number;
-    };
-    query?: never;
-    url: '/api/v1/integration/{integration_id}/access-token';
-};
-
-export type GetIntegrationAccessTokenApiV1IntegrationIntegrationIdAccessTokenGetErrors = {
-    /**
-     * Not found
-     */
-    404: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetIntegrationAccessTokenApiV1IntegrationIntegrationIdAccessTokenGetError = GetIntegrationAccessTokenApiV1IntegrationIntegrationIdAccessTokenGetErrors[keyof GetIntegrationAccessTokenApiV1IntegrationIntegrationIdAccessTokenGetErrors];
-
-export type GetIntegrationAccessTokenApiV1IntegrationIntegrationIdAccessTokenGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: AccessTokenResponse;
-};
-
-export type GetIntegrationAccessTokenApiV1IntegrationIntegrationIdAccessTokenGetResponse = GetIntegrationAccessTokenApiV1IntegrationIntegrationIdAccessTokenGetResponses[keyof GetIntegrationAccessTokenApiV1IntegrationIntegrationIdAccessTokenGetResponses];
-
 export type GetTelephonyProvidersMetadataApiV1OrganizationsTelephonyProvidersMetadataGetData = {
     body?: never;
     headers?: {
@@ -7952,6 +8210,45 @@ export type GetTelephonyProvidersMetadataApiV1OrganizationsTelephonyProvidersMet
 };
 
 export type GetTelephonyProvidersMetadataApiV1OrganizationsTelephonyProvidersMetadataGetResponse = GetTelephonyProvidersMetadataApiV1OrganizationsTelephonyProvidersMetadataGetResponses[keyof GetTelephonyProvidersMetadataApiV1OrganizationsTelephonyProvidersMetadataGetResponses];
+
+export type GetTelephonyConfigWarningsApiV1OrganizationsTelephonyConfigWarningsGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/organizations/telephony-config-warnings';
+};
+
+export type GetTelephonyConfigWarningsApiV1OrganizationsTelephonyConfigWarningsGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type GetTelephonyConfigWarningsApiV1OrganizationsTelephonyConfigWarningsGetError = GetTelephonyConfigWarningsApiV1OrganizationsTelephonyConfigWarningsGetErrors[keyof GetTelephonyConfigWarningsApiV1OrganizationsTelephonyConfigWarningsGetErrors];
+
+export type GetTelephonyConfigWarningsApiV1OrganizationsTelephonyConfigWarningsGetResponses = {
+    /**
+     * Successful Response
+     */
+    200: TelephonyConfigWarningsResponse;
+};
+
+export type GetTelephonyConfigWarningsApiV1OrganizationsTelephonyConfigWarningsGetResponse = GetTelephonyConfigWarningsApiV1OrganizationsTelephonyConfigWarningsGetResponses[keyof GetTelephonyConfigWarningsApiV1OrganizationsTelephonyConfigWarningsGetResponses];
 
 export type ListTelephonyConfigurationsApiV1OrganizationsTelephonyConfigsGetData = {
     body?: never;
@@ -9042,397 +9339,6 @@ export type ReactivateServiceKeyApiV1UserServiceKeysServiceKeyIdReactivatePutRes
     200: unknown;
 };
 
-export type ListTestSessionsApiV1LooptalkTestSessionsGetData = {
-    body?: never;
-    headers?: {
-        /**
-         * Authorization
-         */
-        authorization?: string | null;
-        /**
-         * X-Api-Key
-         */
-        'X-API-Key'?: string | null;
-    };
-    path?: never;
-    query?: {
-        /**
-         * Status
-         */
-        status?: string | null;
-        /**
-         * Load Test Group Id
-         */
-        load_test_group_id?: string | null;
-        /**
-         * Limit
-         */
-        limit?: number;
-        /**
-         * Offset
-         */
-        offset?: number;
-    };
-    url: '/api/v1/looptalk/test-sessions';
-};
-
-export type ListTestSessionsApiV1LooptalkTestSessionsGetErrors = {
-    /**
-     * Not found
-     */
-    404: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type ListTestSessionsApiV1LooptalkTestSessionsGetError = ListTestSessionsApiV1LooptalkTestSessionsGetErrors[keyof ListTestSessionsApiV1LooptalkTestSessionsGetErrors];
-
-export type ListTestSessionsApiV1LooptalkTestSessionsGetResponses = {
-    /**
-     * Response List Test Sessions Api V1 Looptalk Test Sessions Get
-     *
-     * Successful Response
-     */
-    200: Array<TestSessionResponse>;
-};
-
-export type ListTestSessionsApiV1LooptalkTestSessionsGetResponse = ListTestSessionsApiV1LooptalkTestSessionsGetResponses[keyof ListTestSessionsApiV1LooptalkTestSessionsGetResponses];
-
-export type CreateTestSessionApiV1LooptalkTestSessionsPostData = {
-    body: CreateTestSessionRequest;
-    headers?: {
-        /**
-         * Authorization
-         */
-        authorization?: string | null;
-        /**
-         * X-Api-Key
-         */
-        'X-API-Key'?: string | null;
-    };
-    path?: never;
-    query?: never;
-    url: '/api/v1/looptalk/test-sessions';
-};
-
-export type CreateTestSessionApiV1LooptalkTestSessionsPostErrors = {
-    /**
-     * Not found
-     */
-    404: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type CreateTestSessionApiV1LooptalkTestSessionsPostError = CreateTestSessionApiV1LooptalkTestSessionsPostErrors[keyof CreateTestSessionApiV1LooptalkTestSessionsPostErrors];
-
-export type CreateTestSessionApiV1LooptalkTestSessionsPostResponses = {
-    /**
-     * Successful Response
-     */
-    200: TestSessionResponse;
-};
-
-export type CreateTestSessionApiV1LooptalkTestSessionsPostResponse = CreateTestSessionApiV1LooptalkTestSessionsPostResponses[keyof CreateTestSessionApiV1LooptalkTestSessionsPostResponses];
-
-export type GetTestSessionApiV1LooptalkTestSessionsTestSessionIdGetData = {
-    body?: never;
-    headers?: {
-        /**
-         * Authorization
-         */
-        authorization?: string | null;
-        /**
-         * X-Api-Key
-         */
-        'X-API-Key'?: string | null;
-    };
-    path: {
-        /**
-         * Test Session Id
-         */
-        test_session_id: number;
-    };
-    query?: never;
-    url: '/api/v1/looptalk/test-sessions/{test_session_id}';
-};
-
-export type GetTestSessionApiV1LooptalkTestSessionsTestSessionIdGetErrors = {
-    /**
-     * Not found
-     */
-    404: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetTestSessionApiV1LooptalkTestSessionsTestSessionIdGetError = GetTestSessionApiV1LooptalkTestSessionsTestSessionIdGetErrors[keyof GetTestSessionApiV1LooptalkTestSessionsTestSessionIdGetErrors];
-
-export type GetTestSessionApiV1LooptalkTestSessionsTestSessionIdGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: TestSessionResponse;
-};
-
-export type GetTestSessionApiV1LooptalkTestSessionsTestSessionIdGetResponse = GetTestSessionApiV1LooptalkTestSessionsTestSessionIdGetResponses[keyof GetTestSessionApiV1LooptalkTestSessionsTestSessionIdGetResponses];
-
-export type StartTestSessionApiV1LooptalkTestSessionsTestSessionIdStartPostData = {
-    body?: never;
-    headers?: {
-        /**
-         * Authorization
-         */
-        authorization?: string | null;
-        /**
-         * X-Api-Key
-         */
-        'X-API-Key'?: string | null;
-    };
-    path: {
-        /**
-         * Test Session Id
-         */
-        test_session_id: number;
-    };
-    query?: never;
-    url: '/api/v1/looptalk/test-sessions/{test_session_id}/start';
-};
-
-export type StartTestSessionApiV1LooptalkTestSessionsTestSessionIdStartPostErrors = {
-    /**
-     * Not found
-     */
-    404: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type StartTestSessionApiV1LooptalkTestSessionsTestSessionIdStartPostError = StartTestSessionApiV1LooptalkTestSessionsTestSessionIdStartPostErrors[keyof StartTestSessionApiV1LooptalkTestSessionsTestSessionIdStartPostErrors];
-
-export type StartTestSessionApiV1LooptalkTestSessionsTestSessionIdStartPostResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
-};
-
-export type StopTestSessionApiV1LooptalkTestSessionsTestSessionIdStopPostData = {
-    body?: never;
-    headers?: {
-        /**
-         * Authorization
-         */
-        authorization?: string | null;
-        /**
-         * X-Api-Key
-         */
-        'X-API-Key'?: string | null;
-    };
-    path: {
-        /**
-         * Test Session Id
-         */
-        test_session_id: number;
-    };
-    query?: never;
-    url: '/api/v1/looptalk/test-sessions/{test_session_id}/stop';
-};
-
-export type StopTestSessionApiV1LooptalkTestSessionsTestSessionIdStopPostErrors = {
-    /**
-     * Not found
-     */
-    404: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type StopTestSessionApiV1LooptalkTestSessionsTestSessionIdStopPostError = StopTestSessionApiV1LooptalkTestSessionsTestSessionIdStopPostErrors[keyof StopTestSessionApiV1LooptalkTestSessionsTestSessionIdStopPostErrors];
-
-export type StopTestSessionApiV1LooptalkTestSessionsTestSessionIdStopPostResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
-};
-
-export type GetTestSessionConversationApiV1LooptalkTestSessionsTestSessionIdConversationGetData = {
-    body?: never;
-    headers?: {
-        /**
-         * Authorization
-         */
-        authorization?: string | null;
-        /**
-         * X-Api-Key
-         */
-        'X-API-Key'?: string | null;
-    };
-    path: {
-        /**
-         * Test Session Id
-         */
-        test_session_id: number;
-    };
-    query?: never;
-    url: '/api/v1/looptalk/test-sessions/{test_session_id}/conversation';
-};
-
-export type GetTestSessionConversationApiV1LooptalkTestSessionsTestSessionIdConversationGetErrors = {
-    /**
-     * Not found
-     */
-    404: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetTestSessionConversationApiV1LooptalkTestSessionsTestSessionIdConversationGetError = GetTestSessionConversationApiV1LooptalkTestSessionsTestSessionIdConversationGetErrors[keyof GetTestSessionConversationApiV1LooptalkTestSessionsTestSessionIdConversationGetErrors];
-
-export type GetTestSessionConversationApiV1LooptalkTestSessionsTestSessionIdConversationGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
-};
-
-export type CreateLoadTestApiV1LooptalkLoadTestsPostData = {
-    body: CreateLoadTestRequest;
-    headers?: {
-        /**
-         * Authorization
-         */
-        authorization?: string | null;
-        /**
-         * X-Api-Key
-         */
-        'X-API-Key'?: string | null;
-    };
-    path?: never;
-    query?: never;
-    url: '/api/v1/looptalk/load-tests';
-};
-
-export type CreateLoadTestApiV1LooptalkLoadTestsPostErrors = {
-    /**
-     * Not found
-     */
-    404: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type CreateLoadTestApiV1LooptalkLoadTestsPostError = CreateLoadTestApiV1LooptalkLoadTestsPostErrors[keyof CreateLoadTestApiV1LooptalkLoadTestsPostErrors];
-
-export type CreateLoadTestApiV1LooptalkLoadTestsPostResponses = {
-    /**
-     * Response Create Load Test Api V1 Looptalk Load Tests Post
-     *
-     * Successful Response
-     */
-    200: {
-        [key: string]: unknown;
-    };
-};
-
-export type CreateLoadTestApiV1LooptalkLoadTestsPostResponse = CreateLoadTestApiV1LooptalkLoadTestsPostResponses[keyof CreateLoadTestApiV1LooptalkLoadTestsPostResponses];
-
-export type GetLoadTestStatsApiV1LooptalkLoadTestsLoadTestGroupIdStatsGetData = {
-    body?: never;
-    headers?: {
-        /**
-         * Authorization
-         */
-        authorization?: string | null;
-        /**
-         * X-Api-Key
-         */
-        'X-API-Key'?: string | null;
-    };
-    path: {
-        /**
-         * Load Test Group Id
-         */
-        load_test_group_id: string;
-    };
-    query?: never;
-    url: '/api/v1/looptalk/load-tests/{load_test_group_id}/stats';
-};
-
-export type GetLoadTestStatsApiV1LooptalkLoadTestsLoadTestGroupIdStatsGetErrors = {
-    /**
-     * Not found
-     */
-    404: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetLoadTestStatsApiV1LooptalkLoadTestsLoadTestGroupIdStatsGetError = GetLoadTestStatsApiV1LooptalkLoadTestsLoadTestGroupIdStatsGetErrors[keyof GetLoadTestStatsApiV1LooptalkLoadTestsLoadTestGroupIdStatsGetErrors];
-
-export type GetLoadTestStatsApiV1LooptalkLoadTestsLoadTestGroupIdStatsGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: LoadTestStatsResponse;
-};
-
-export type GetLoadTestStatsApiV1LooptalkLoadTestsLoadTestGroupIdStatsGetResponse = GetLoadTestStatsApiV1LooptalkLoadTestsLoadTestGroupIdStatsGetResponses[keyof GetLoadTestStatsApiV1LooptalkLoadTestsLoadTestGroupIdStatsGetResponses];
-
-export type GetActiveTestsApiV1LooptalkActiveTestsGetData = {
-    body?: never;
-    headers?: {
-        /**
-         * Authorization
-         */
-        authorization?: string | null;
-        /**
-         * X-Api-Key
-         */
-        'X-API-Key'?: string | null;
-    };
-    path?: never;
-    query?: never;
-    url: '/api/v1/looptalk/active-tests';
-};
-
-export type GetActiveTestsApiV1LooptalkActiveTestsGetErrors = {
-    /**
-     * Not found
-     */
-    404: unknown;
-    /**
-     * Validation Error
-     */
-    422: HttpValidationError;
-};
-
-export type GetActiveTestsApiV1LooptalkActiveTestsGetError = GetActiveTestsApiV1LooptalkActiveTestsGetErrors[keyof GetActiveTestsApiV1LooptalkActiveTestsGetErrors];
-
-export type GetActiveTestsApiV1LooptalkActiveTestsGetResponses = {
-    /**
-     * Successful Response
-     */
-    200: unknown;
-};
-
 export type GetCurrentPeriodUsageApiV1OrganizationsUsageCurrentPeriodGetData = {
     body?: never;
     headers?: {
@@ -10181,6 +10087,86 @@ export type InitiateCallTestApiV1PublicAgentTestUuidPostResponses = {
 
 export type InitiateCallTestApiV1PublicAgentTestUuidPostResponse = InitiateCallTestApiV1PublicAgentTestUuidPostResponses[keyof InitiateCallTestApiV1PublicAgentTestUuidPostResponses];
 
+export type InitiateCallByWorkflowUuidApiV1PublicAgentWorkflowWorkflowUuidPostData = {
+    body: TriggerCallRequest;
+    headers: {
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key': string;
+    };
+    path: {
+        /**
+         * Workflow Uuid
+         */
+        workflow_uuid: string;
+    };
+    query?: never;
+    url: '/api/v1/public/agent/workflow/{workflow_uuid}';
+};
+
+export type InitiateCallByWorkflowUuidApiV1PublicAgentWorkflowWorkflowUuidPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type InitiateCallByWorkflowUuidApiV1PublicAgentWorkflowWorkflowUuidPostError = InitiateCallByWorkflowUuidApiV1PublicAgentWorkflowWorkflowUuidPostErrors[keyof InitiateCallByWorkflowUuidApiV1PublicAgentWorkflowWorkflowUuidPostErrors];
+
+export type InitiateCallByWorkflowUuidApiV1PublicAgentWorkflowWorkflowUuidPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: TriggerCallResponse;
+};
+
+export type InitiateCallByWorkflowUuidApiV1PublicAgentWorkflowWorkflowUuidPostResponse = InitiateCallByWorkflowUuidApiV1PublicAgentWorkflowWorkflowUuidPostResponses[keyof InitiateCallByWorkflowUuidApiV1PublicAgentWorkflowWorkflowUuidPostResponses];
+
+export type InitiateCallTestByWorkflowUuidApiV1PublicAgentTestWorkflowWorkflowUuidPostData = {
+    body: TriggerCallRequest;
+    headers: {
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key': string;
+    };
+    path: {
+        /**
+         * Workflow Uuid
+         */
+        workflow_uuid: string;
+    };
+    query?: never;
+    url: '/api/v1/public/agent/test/workflow/{workflow_uuid}';
+};
+
+export type InitiateCallTestByWorkflowUuidApiV1PublicAgentTestWorkflowWorkflowUuidPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type InitiateCallTestByWorkflowUuidApiV1PublicAgentTestWorkflowWorkflowUuidPostError = InitiateCallTestByWorkflowUuidApiV1PublicAgentTestWorkflowWorkflowUuidPostErrors[keyof InitiateCallTestByWorkflowUuidApiV1PublicAgentTestWorkflowWorkflowUuidPostErrors];
+
+export type InitiateCallTestByWorkflowUuidApiV1PublicAgentTestWorkflowWorkflowUuidPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: TriggerCallResponse;
+};
+
+export type InitiateCallTestByWorkflowUuidApiV1PublicAgentTestWorkflowWorkflowUuidPostResponse = InitiateCallTestByWorkflowUuidApiV1PublicAgentTestWorkflowWorkflowUuidPostResponses[keyof InitiateCallTestByWorkflowUuidApiV1PublicAgentTestWorkflowWorkflowUuidPostResponses];
+
 export type DownloadWorkflowArtifactApiV1PublicDownloadWorkflowTokenArtifactTypeGetData = {
     body?: never;
     path: {
@@ -10883,6 +10869,178 @@ export type TranscribeAudioApiV1WorkflowRecordingsTranscribePostResponses = {
      */
     200: unknown;
 };
+
+export type ListFoldersApiV1FolderGetData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/folder/';
+};
+
+export type ListFoldersApiV1FolderGetErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type ListFoldersApiV1FolderGetError = ListFoldersApiV1FolderGetErrors[keyof ListFoldersApiV1FolderGetErrors];
+
+export type ListFoldersApiV1FolderGetResponses = {
+    /**
+     * Response List Folders Api V1 Folder  Get
+     *
+     * Successful Response
+     */
+    200: Array<FolderResponse>;
+};
+
+export type ListFoldersApiV1FolderGetResponse = ListFoldersApiV1FolderGetResponses[keyof ListFoldersApiV1FolderGetResponses];
+
+export type CreateFolderApiV1FolderPostData = {
+    body: CreateFolderRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/folder/';
+};
+
+export type CreateFolderApiV1FolderPostErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type CreateFolderApiV1FolderPostError = CreateFolderApiV1FolderPostErrors[keyof CreateFolderApiV1FolderPostErrors];
+
+export type CreateFolderApiV1FolderPostResponses = {
+    /**
+     * Successful Response
+     */
+    200: FolderResponse;
+};
+
+export type CreateFolderApiV1FolderPostResponse = CreateFolderApiV1FolderPostResponses[keyof CreateFolderApiV1FolderPostResponses];
+
+export type DeleteFolderApiV1FolderFolderIdDeleteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Folder Id
+         */
+        folder_id: number;
+    };
+    query?: never;
+    url: '/api/v1/folder/{folder_id}';
+};
+
+export type DeleteFolderApiV1FolderFolderIdDeleteErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type DeleteFolderApiV1FolderFolderIdDeleteError = DeleteFolderApiV1FolderFolderIdDeleteErrors[keyof DeleteFolderApiV1FolderFolderIdDeleteErrors];
+
+export type DeleteFolderApiV1FolderFolderIdDeleteResponses = {
+    /**
+     * Response Delete Folder Api V1 Folder  Folder Id  Delete
+     *
+     * Successful Response
+     */
+    200: {
+        [key: string]: boolean;
+    };
+};
+
+export type DeleteFolderApiV1FolderFolderIdDeleteResponse = DeleteFolderApiV1FolderFolderIdDeleteResponses[keyof DeleteFolderApiV1FolderFolderIdDeleteResponses];
+
+export type RenameFolderApiV1FolderFolderIdPutData = {
+    body: UpdateFolderRequest;
+    headers?: {
+        /**
+         * Authorization
+         */
+        authorization?: string | null;
+        /**
+         * X-Api-Key
+         */
+        'X-API-Key'?: string | null;
+    };
+    path: {
+        /**
+         * Folder Id
+         */
+        folder_id: number;
+    };
+    query?: never;
+    url: '/api/v1/folder/{folder_id}';
+};
+
+export type RenameFolderApiV1FolderFolderIdPutErrors = {
+    /**
+     * Not found
+     */
+    404: unknown;
+    /**
+     * Validation Error
+     */
+    422: HttpValidationError;
+};
+
+export type RenameFolderApiV1FolderFolderIdPutError = RenameFolderApiV1FolderFolderIdPutErrors[keyof RenameFolderApiV1FolderFolderIdPutErrors];
+
+export type RenameFolderApiV1FolderFolderIdPutResponses = {
+    /**
+     * Successful Response
+     */
+    200: FolderResponse;
+};
+
+export type RenameFolderApiV1FolderFolderIdPutResponse = RenameFolderApiV1FolderFolderIdPutResponses[keyof RenameFolderApiV1FolderFolderIdPutResponses];
 
 export type SignupApiV1AuthSignupPostData = {
     body: SignupRequest;

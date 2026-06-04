@@ -26,6 +26,9 @@ DATABASE_URL = os.environ["DATABASE_URL"]
 REDIS_URL = os.environ["REDIS_URL"]
 
 DEPLOYMENT_MODE = os.getenv("DEPLOYMENT_MODE", "oss")
+CORS_ALLOWED_ORIGINS = [
+    o.strip() for o in os.getenv("CORS_ALLOWED_ORIGINS", "").split(",") if o.strip()
+]
 AUTH_PROVIDER = os.getenv("AUTH_PROVIDER", "local")
 DOGRAH_MPS_SECRET_KEY = os.getenv("DOGRAH_MPS_SECRET_KEY", None)
 MPS_API_URL = os.getenv("MPS_API_URL", "https://services.dograh.com")
@@ -142,3 +145,5 @@ FORCE_TURN_RELAY = os.getenv("FORCE_TURN_RELAY", "false").lower() == "true"
 # OSS Email/Password Auth
 OSS_JWT_SECRET = os.getenv("OSS_JWT_SECRET", "change-me-in-production")
 OSS_JWT_EXPIRY_HOURS = int(os.getenv("OSS_JWT_EXPIRY_HOURS", "720"))  # 30 days
+
+TUNER_BASE_URL = os.getenv("TUNER_BASE_URL", "https://api.usetuner.ai")
