@@ -659,6 +659,7 @@ def create_llm_service_from_provider(
         return CerebrasLLMService(
             api_key=api_key,
             settings=CerebrasLLMSettings(model=model, temperature=0.1),
+        )
     elif provider == ServiceProviders.MINIMAX.value:
         base_url = base_url or "https://api.minimax.io/v1"
         _validate_runtime_service_url(base_url, "base_url")
