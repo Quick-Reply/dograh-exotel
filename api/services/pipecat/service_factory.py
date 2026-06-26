@@ -6,7 +6,14 @@ from fastapi import HTTPException
 from loguru import logger
 
 from api.constants import MPS_API_URL
+from api.services.configuration.options import (
+    DEEPGRAM_FLUX_MODELS,
+    DEEPGRAM_FLUX_MULTILINGUAL_LANGUAGE_OPTIONS,
+)
 from api.services.configuration.registry import ServiceProviders
+from api.services.pipecat.gemini_json_schema_adapter import (
+    DograhGeminiJSONSchemaAdapter,
+)
 from api.services.pipecat.minimax_tts import MiniMaxOwnedSessionTTSService
 from api.utils.url_security import validate_user_configured_service_url
 from pipecat.services.assemblyai.stt import AssemblyAISTTService, AssemblyAISTTSettings
@@ -26,6 +33,7 @@ from pipecat.services.deepgram.flux.stt import (
 )
 from pipecat.services.deepgram.stt import DeepgramSTTService, DeepgramSTTSettings
 from pipecat.services.deepgram.tts import DeepgramTTSService, DeepgramTTSSettings
+from pipecat.services.dograh.flux.stt import DograhFluxSTTService
 from pipecat.services.dograh.llm import DograhLLMService
 from pipecat.services.dograh.stt import DograhSTTService, DograhSTTSettings
 from pipecat.services.dograh.tts import DograhTTSService, DograhTTSSettings
@@ -39,8 +47,18 @@ from pipecat.services.google.vertex.llm import (
     GoogleVertexLLMSettings,
 )
 from pipecat.services.groq.llm import GroqLLMService, GroqLLMSettings
+from pipecat.services.huggingface.llm import (
+    HuggingFaceLLMService,
+    HuggingFaceLLMSettings,
+)
+from pipecat.services.huggingface.stt import (
+    HuggingFaceSTTService,
+    HuggingFaceSTTSettings,
+)
+from pipecat.services.inworld.tts import InworldTTSService, InworldTTSSettings
 from pipecat.services.minimax.llm import MiniMaxLLMService
 from pipecat.services.minimax.tts import MiniMaxTTSSettings
+from pipecat.services.openai._constants import OPENAI_SAMPLE_RATE
 from pipecat.services.openai.base_llm import OpenAILLMSettings
 from pipecat.services.openai.llm import OpenAILLMService
 from pipecat.services.openai.stt import (
@@ -53,6 +71,8 @@ from pipecat.services.rime.tts import RimeTTSService, RimeTTSSettings
 from pipecat.services.sarvam.llm import SarvamLLMService, SarvamLLMSettings
 from pipecat.services.sarvam.stt import SarvamSTTService, SarvamSTTSettings
 from pipecat.services.sarvam.tts import SarvamTTSService, SarvamTTSSettings
+from pipecat.services.smallest.stt import SmallestSTTService, SmallestSTTSettings
+from pipecat.services.smallest.tts import SmallestTTSService, SmallestTTSSettings
 from pipecat.services.speaches.llm import SpeachesLLMService, SpeachesLLMSettings
 from pipecat.services.speaches.stt import SpeachesSTTService, SpeachesSTTSettings
 from pipecat.services.speaches.tts import SpeachesTTSService, SpeachesTTSSettings
@@ -67,6 +87,41 @@ if TYPE_CHECKING:
     from api.services.pipecat.audio_config import AudioConfig
 
 
+DEEPGRAM_FLUX_LANGUAGE_HINTS = {
+    "de": Language.DE,
+    "en": Language.EN,
+    "es": Language.ES,
+    "fr": Language.FR,
+    "hi": Language.HI,
+    "it": Language.IT,
+    "ja": Language.JA,
+    "nl": Language.NL,
+    "pt": Language.PT,
+    "ru": Language.RU,
+}
+
+
+def dograh_stt_uses_flux_language(language: str | None) -> bool:
+    language = language or "multi"
+    return language in DEEPGRAM_FLUX_MULTILINGUAL_LANGUAGE_OPTIONS
+
+
+def stt_uses_flux_turns(user_config) -> bool:
+    if user_config.stt.provider == ServiceProviders.DEEPGRAM.value:
+        return user_config.stt.model in DEEPGRAM_FLUX_MODELS
+    if user_config.stt.provider == ServiceProviders.DOGRAH.value:
+        return dograh_stt_uses_flux_language(getattr(user_config.stt, "language", None))
+    return False
+
+
+class DograhGoogleLLMService(GoogleLLMService):
+    adapter_class = DograhGeminiJSONSchemaAdapter
+
+
+class DograhGoogleVertexLLMService(GoogleVertexLLMService):
+    adapter_class = DograhGeminiJSONSchemaAdapter
+
+
 def _validate_runtime_service_url(url: str, field_name: str) -> None:
     try:
         validate_user_configured_service_url(
@@ -78,7 +133,10 @@ def _validate_runtime_service_url(url: str, field_name: str) -> None:
 
 
 def create_stt_service(
-    user_config, audio_config: "AudioConfig", keyterms: list[str] | None = None
+    user_config,
+    audio_config: "AudioConfig",
+    keyterms: list[str] | None = None,
+    correlation_id: str | None = None,
 ):
     """Create and return appropriate STT service based on user configuration
 
@@ -90,17 +148,23 @@ def create_stt_service(
         f"Creating STT service: provider={user_config.stt.provider}, model={user_config.stt.model}"
     )
     if user_config.stt.provider == ServiceProviders.DEEPGRAM.value:
-        # Check if using Flux model (English-only, no language selection)
-        if user_config.stt.model == "flux-general-en":
+        if user_config.stt.model in DEEPGRAM_FLUX_MODELS:
+            settings_kwargs = {
+                "model": user_config.stt.model,
+                "eot_timeout_ms": 3000,
+                "eot_threshold": 0.7,
+                "eager_eot_threshold": 0.5,
+                "keyterm": keyterms or [],
+            }
+            if user_config.stt.model == "flux-general-multi":
+                language = getattr(user_config.stt, "language", None)
+                language_hint = DEEPGRAM_FLUX_LANGUAGE_HINTS.get(language)
+                if language_hint:
+                    settings_kwargs["language_hints"] = [language_hint]
+
             return DeepgramFluxSTTService(
                 api_key=user_config.stt.api_key,
-                settings=DeepgramFluxSTTSettings(
-                    model=user_config.stt.model,
-                    eot_timeout_ms=3000,
-                    eot_threshold=0.7,
-                    eager_eot_threshold=0.5,
-                    keyterm=keyterms or [],
-                ),
+                settings=DeepgramFluxSTTSettings(**settings_kwargs),
                 should_interrupt=False,  # Let UserAggregator take care of sending InterruptionFrame
                 sample_rate=audio_config.transport_in_sample_rate,
             )
@@ -157,9 +221,33 @@ def create_stt_service(
     elif user_config.stt.provider == ServiceProviders.DOGRAH.value:
         base_url = MPS_API_URL.replace("http://", "ws://").replace("https://", "wss://")
         language = getattr(user_config.stt, "language", None) or "multi"
+
+        if dograh_stt_uses_flux_language(language):
+            # Dograh's Flux proxy only supports multilingual auto-detect and the
+            # same language hint subset as Deepgram Flux multilingual.
+            settings_kwargs = {
+                "model": "flux-general-multi",
+                "eot_timeout_ms": 3000,
+                "eot_threshold": 0.7,
+                "eager_eot_threshold": 0.5,
+                "keyterm": keyterms or [],
+            }
+            language_hint = DEEPGRAM_FLUX_LANGUAGE_HINTS.get(language)
+            if language_hint:
+                settings_kwargs["language_hints"] = [language_hint]
+            return DograhFluxSTTService(
+                base_url=base_url,
+                api_key=user_config.stt.api_key,
+                correlation_id=correlation_id,
+                settings=DeepgramFluxSTTSettings(**settings_kwargs),
+                should_interrupt=False,  # external turn strategies own interruption
+                sample_rate=audio_config.transport_in_sample_rate,
+            )
+
         return DograhSTTService(
             base_url=base_url,
             api_key=user_config.stt.api_key,
+            correlation_id=correlation_id,
             settings=DograhSTTSettings(
                 model=user_config.stt.model,
                 language=language,
@@ -211,6 +299,22 @@ def create_stt_service(
             settings=SpeachesSTTSettings(
                 model=user_config.stt.model,
                 language=language,
+            ),
+            sample_rate=audio_config.transport_in_sample_rate,
+        )
+    elif user_config.stt.provider == ServiceProviders.HUGGINGFACE.value:
+        base_url = (
+            getattr(user_config.stt, "base_url", None)
+            or "https://router.huggingface.co/hf-inference"
+        )
+        _validate_runtime_service_url(base_url, "base_url")
+        return HuggingFaceSTTService(
+            api_key=user_config.stt.api_key,
+            base_url=base_url,
+            bill_to=getattr(user_config.stt, "bill_to", None),
+            settings=HuggingFaceSTTSettings(
+                model=user_config.stt.model,
+                return_timestamps=getattr(user_config.stt, "return_timestamps", False),
             ),
             sample_rate=audio_config.transport_in_sample_rate,
         )
@@ -280,13 +384,29 @@ def create_stt_service(
             settings=AzureSTTSettings(language=pipecat_language),
             sample_rate=audio_config.transport_in_sample_rate,
         )
+    elif user_config.stt.provider == ServiceProviders.SMALLEST.value:
+        language_code = getattr(user_config.stt, "language", None) or "en"
+        try:
+            pipecat_language = Language(language_code)
+        except ValueError:
+            pipecat_language = Language.EN
+        return SmallestSTTService(
+            api_key=user_config.stt.api_key,
+            settings=SmallestSTTSettings(
+                model=user_config.stt.model,
+                language=pipecat_language,
+            ),
+            sample_rate=audio_config.transport_in_sample_rate,
+        )
     else:
         raise HTTPException(
             status_code=400, detail=f"Invalid STT provider {user_config.stt.provider}"
         )
 
 
-def create_tts_service(user_config, audio_config: "AudioConfig"):
+def create_tts_service(
+    user_config, audio_config: "AudioConfig", correlation_id: str | None = None
+):
     """Create and return appropriate TTS service based on user configuration
 
     Args:
@@ -314,6 +434,7 @@ def create_tts_service(user_config, audio_config: "AudioConfig"):
             kwargs["base_url"] = base_url
         return OpenAITTSService(
             api_key=user_config.tts.api_key,
+            sample_rate=OPENAI_SAMPLE_RATE,
             settings=OpenAITTSSettings(model=user_config.tts.model),
             text_filters=[xml_function_tag_filter],
             skip_aggregator_types=["recording_router", "recording"],
@@ -383,16 +504,37 @@ def create_tts_service(user_config, audio_config: "AudioConfig"):
         generation_config = (
             GenerationConfig(**gen_config_kwargs) if gen_config_kwargs else None
         )
+        language = getattr(user_config.tts, "language", None) or "en"
         return CartesiaTTSService(
             api_key=user_config.tts.api_key,
             settings=CartesiaTTSSettings(
                 voice=user_config.tts.voice,
                 model=user_config.tts.model,
+                language=language,
                 **(
                     {"generation_config": generation_config}
                     if generation_config
                     else {}
                 ),
+            ),
+            text_filters=[xml_function_tag_filter],
+            skip_aggregator_types=["recording_router", "recording"],
+            silence_time_s=1.0,
+        )
+    elif user_config.tts.provider == ServiceProviders.INWORLD.value:
+        voice = getattr(user_config.tts, "voice", None) or "Ashley"
+        model = getattr(user_config.tts, "model", None) or "inworld-tts-2"
+        speed = getattr(user_config.tts, "speed", None)
+        language = getattr(user_config.tts, "language", None) or "en-US"
+        delivery_mode = getattr(user_config.tts, "delivery_mode", None) or "BALANCED"
+        return InworldTTSService(
+            api_key=user_config.tts.api_key,
+            settings=InworldTTSSettings(
+                voice=voice,
+                model=model,
+                language=language,
+                speaking_rate=speed,
+                delivery_mode=delivery_mode,
             ),
             text_filters=[xml_function_tag_filter],
             skip_aggregator_types=["recording_router", "recording"],
@@ -404,6 +546,7 @@ def create_tts_service(user_config, audio_config: "AudioConfig"):
         return DograhTTSService(
             base_url=base_url,
             api_key=user_config.tts.api_key,
+            correlation_id=correlation_id,
             settings=DograhTTSSettings(
                 model=user_config.tts.model,
                 voice=user_config.tts.voice,
@@ -485,14 +628,20 @@ def create_tts_service(user_config, audio_config: "AudioConfig"):
         language = getattr(user_config.tts, "language", None)
         pipecat_language = language_mapping.get(language, Language.HI)
 
-        voice = getattr(user_config.tts, "voice", None) or "anushka"
+        voice = (
+            getattr(user_config.tts, "voice", None) or ""
+        ).strip().lower() or "anushka"
+        speed = getattr(user_config.tts, "speed", None)
+        settings_kwargs = {
+            "model": user_config.tts.model,
+            "voice": voice,
+            "language": pipecat_language,
+        }
+        if speed and speed != 1.0:
+            settings_kwargs["pace"] = speed
         return SarvamTTSService(
             api_key=user_config.tts.api_key,
-            settings=SarvamTTSSettings(
-                model=user_config.tts.model,
-                voice=voice,
-                language=pipecat_language,
-            ),
+            settings=SarvamTTSSettings(**settings_kwargs),
             text_filters=[xml_function_tag_filter],
             skip_aggregator_types=["recording_router", "recording"],
             silence_time_s=1.0,
@@ -553,10 +702,45 @@ def create_tts_service(user_config, audio_config: "AudioConfig"):
             skip_aggregator_types=["recording_router", "recording"],
             silence_time_s=1.0,
         )
+    elif user_config.tts.provider == ServiceProviders.SMALLEST.value:
+        language_code = getattr(user_config.tts, "language", None) or "en"
+        try:
+            pipecat_language = Language(language_code)
+        except ValueError:
+            pipecat_language = Language.EN
+        speed = getattr(user_config.tts, "speed", None)
+        model = user_config.tts.model.replace("lightning-v", "lightning_v")
+        settings_kwargs = SmallestTTSSettings(
+            model=model,
+            voice=user_config.tts.voice,
+            language=pipecat_language,
+        )
+        if speed and speed != 1.0:
+            settings_kwargs.speed = speed
+        return SmallestTTSService(
+            api_key=user_config.tts.api_key,
+            settings=settings_kwargs,
+            text_filters=[xml_function_tag_filter],
+            skip_aggregator_types=["recording_router", "recording"],
+            silence_time_s=1.0,
+        )
     else:
         raise HTTPException(
             status_code=400, detail=f"Invalid TTS provider {user_config.tts.provider}"
         )
+
+
+def _migrate_deprecated_google_model(model: str) -> str:
+    """Google removed the ``gemini-2.0-flash*`` models. Transparently upgrade
+    any stored config that still references them to the 2.5 equivalent so old
+    user configurations keep working instead of failing at runtime."""
+    if model and model.startswith("gemini-2.0-flash"):
+        migrated = model.replace("gemini-2.0-", "gemini-2.5-", 1)
+        logger.warning(
+            f"Google model '{model}' is no longer supported; using '{migrated}' instead"
+        )
+        return migrated
+    return model
 
 
 def create_llm_service_from_provider(
@@ -564,6 +748,7 @@ def create_llm_service_from_provider(
     model: str,
     api_key: str | None,
     *,
+    correlation_id: str | None = None,
     base_url: str | None = None,
     endpoint: str | None = None,
     aws_access_key: str | None = None,
@@ -573,6 +758,7 @@ def create_llm_service_from_provider(
     location: str | None = None,
     credentials: str | None = None,
     temperature: float | None = None,
+    bill_to: str | None = None,
 ):
     """Create an LLM service from explicit provider/model/api_key.
 
@@ -614,12 +800,13 @@ def create_llm_service_from_provider(
             **kwargs,
         )
     elif provider == ServiceProviders.GOOGLE.value:
-        return GoogleLLMService(
+        model = _migrate_deprecated_google_model(model)
+        return DograhGoogleLLMService(
             api_key=api_key,
             settings=GoogleLLMSettings(model=model, temperature=0.1),
         )
     elif provider == ServiceProviders.GOOGLE_VERTEX.value:
-        return GoogleVertexLLMService(
+        return DograhGoogleVertexLLMService(
             credentials=credentials,
             project_id=project_id,
             location=location or "us-east4",
@@ -637,6 +824,7 @@ def create_llm_service_from_provider(
         return DograhLLMService(
             base_url=f"{MPS_API_URL}/api/v1/llm",
             api_key=api_key,
+            correlation_id=correlation_id,
             settings=OpenAILLMSettings(model=model),
         )
     elif provider == ServiceProviders.AWS_BEDROCK.value:
@@ -654,11 +842,14 @@ def create_llm_service_from_provider(
             api_key=api_key or "none",
             settings=SpeachesLLMSettings(model=model),
         )
-    elif provider == ServiceProviders.CEREBRAS.value:
-        from pipecat.services.cerebras.llm import CerebrasLLMService, CerebrasLLMSettings
-        return CerebrasLLMService(
+    elif provider == ServiceProviders.HUGGINGFACE.value:
+        base_url = base_url or "https://router.huggingface.co/v1"
+        _validate_runtime_service_url(base_url, "base_url")
+        return HuggingFaceLLMService(
             api_key=api_key,
-            settings=CerebrasLLMSettings(model=model, temperature=0.1),
+            base_url=base_url,
+            bill_to=bill_to,
+            settings=HuggingFaceLLMSettings(model=model, temperature=0.1),
         )
     elif provider == ServiceProviders.MINIMAX.value:
         base_url = base_url or "https://api.minimax.io/v1"
@@ -857,7 +1048,7 @@ def create_realtime_llm_service(user_config, audio_config: "AudioConfig"):
         )
 
 
-def create_llm_service(user_config):
+def create_llm_service(user_config, correlation_id: str | None = None):
     """Create and return appropriate LLM service based on user configuration."""
     provider = user_config.llm.provider
     model = user_config.llm.model
@@ -872,6 +1063,9 @@ def create_llm_service(user_config):
         kwargs["endpoint"] = user_config.llm.endpoint
     elif provider == ServiceProviders.SPEACHES.value:
         kwargs["base_url"] = user_config.llm.base_url
+    elif provider == ServiceProviders.HUGGINGFACE.value:
+        kwargs["base_url"] = user_config.llm.base_url
+        kwargs["bill_to"] = user_config.llm.bill_to
     elif provider == ServiceProviders.AWS_BEDROCK.value:
         kwargs["aws_access_key"] = user_config.llm.aws_access_key
         kwargs["aws_secret_key"] = user_config.llm.aws_secret_key
@@ -886,4 +1080,10 @@ def create_llm_service(user_config):
     elif provider == ServiceProviders.SARVAM.value:
         kwargs["temperature"] = user_config.llm.temperature
 
-    return create_llm_service_from_provider(provider, model, api_key, **kwargs)
+    return create_llm_service_from_provider(
+        provider,
+        model,
+        api_key,
+        correlation_id=correlation_id,
+        **kwargs,
+    )
